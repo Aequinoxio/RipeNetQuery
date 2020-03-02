@@ -1,5 +1,4 @@
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * La versione originaria e mantenuta è nel progetto RobTexApi
@@ -80,9 +79,9 @@ public enum HttpStatusCodes {
     Network_Connect_Timeout_Error(599, "Network Connect Timeout Error"),
     UNKNOWN_CODE(-1,"Unknown code");
 
-    int code;
-    String desc;
-    String codeText;
+    private int code;
+    private String desc;
+    private String codeText;
 
     private static java.util.Map<Integer, HttpStatusCodes> CONVERSION_MAP = new HashMap<>();
     static {

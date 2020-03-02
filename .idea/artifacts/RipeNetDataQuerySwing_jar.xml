@@ -1,0 +1,14 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="RipeNetDataQuerySwing:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/RipeNetDataQuerySwing_jar</output-path>
+    <root id="archive" name="RipeNetDataQuery.jar">
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/ManifestUI/META-INF/MANIFEST.MF" />
+      </element>
+      <element id="module-output" name="RipeNetDataQuery" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/jetbrains/annotations/18.0.0/annotations-18.0.0.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/glassfish/javax.json/1.1.4/javax.json-1.1.4.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/javax/json/javax.json-api/1.1.4/javax.json-api-1.1.4.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
