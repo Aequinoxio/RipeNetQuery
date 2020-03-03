@@ -1,4 +1,9 @@
 import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -20,6 +25,15 @@ public class RipeQueryUI {
     ArrayList<String> IPToBeChecked;
 
     public RipeQueryUI() {
+        // Margine personalizzato nelle label
+        Border margin = new EmptyBorder(4,4,4,4);
+        lblFilename.setBorder(new CompoundBorder(
+                new LineBorder(Color.BLACK,1,true),
+                margin
+        ));
+
+        //lblStatus.setBorder(margin);
+
         btnScegliFile.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -47,6 +61,8 @@ public class RipeQueryUI {
                         } else {
                             btnIniziaAnalisi.setEnabled(false);
                         }
+
+                        txtResults.setText("");
                     }
                 }
             }
@@ -67,6 +83,7 @@ public class RipeQueryUI {
                                 ip + " - Error: \t" +
                                         retval + " " + retval.getCode() + " " + retval.getCodeAsText() + " " + retval.getDesc()
                         );
+                        txtResults.append("\n");
 //                        System.out.print(ip+" - Error: ");
 //                        System.out.println(retval + " " + retval.getCode() + " " + retval.getCodeAsText() + " " + retval.getDesc());
                     }
@@ -81,12 +98,12 @@ public class RipeQueryUI {
             String linea;
             while ((linea = bfr.readLine()) != null) {
                 // Check se è un IP valido
-                System.out.print(linea + " : ");
+                //System.out.print(linea + " : ");
                 if (linea.matches("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")) {
                     IPToBeChecked.add(linea);
-                    System.out.println("ok");
+                  //  System.out.println("ok");
                 } else {
-                    System.out.println("IP non valido");
+                  //  System.out.println("IP non valido");
                 }
             }
         } catch (IOException e) {

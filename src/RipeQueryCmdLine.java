@@ -11,14 +11,14 @@ public class RipeQueryCmdLine {
     public static void main(@NotNull String[] args) {
         RipeQuery ripeQueryCmdLine = new RipeQuery();
         if (args.length>0){
-            //String ipFile = args[1];
-            String ipFile = "C:\\Users\\utente\\Downloads\\temp\\ip.txt";
+            String ipFile = args[0];
+            //String ipFile = "C:\\Users\\utente\\Downloads\\temp\\ip.txt";
 
             try (BufferedReader bfr = new BufferedReader(new FileReader(ipFile))) {
                 String linea ;
                 while((linea=bfr.readLine())!=null){
-                    // Check se è un IP valido
                     System.out.print(linea+" : ");
+                    // Check se è un IP valido
                     if (linea.matches("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")) {
                         IPToBeChecked.add(linea);
                         System.out.println("ok");
