@@ -25,6 +25,8 @@ public class RipeQueryUI {
     private JTextArea txtIpList;
     private JButton cancellaTuttoButton;
 
+    private JFileChooser jFileChooser = new JFileChooser();
+
     String IPFilename;
     File IPFile;
     ArrayList<String> IPToBeChecked = new ArrayList<>();
@@ -44,7 +46,7 @@ public class RipeQueryUI {
         btnScegliFile.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JFileChooser jFileChooser = new JFileChooser();
+                //JFileChooser jFileChooser = new JFileChooser();
                 jFileChooser.setMultiSelectionEnabled(false);
                 int retVal = jFileChooser.showOpenDialog(mainPanel);
                 if (retVal == JFileChooser.APPROVE_OPTION) {
@@ -55,7 +57,11 @@ public class RipeQueryUI {
                     } else {
                         // Reinizializzo l'array
                         //IPToBeChecked = new ArrayList<>();
-                        IPToBeChecked.clear();
+                        //IPToBeChecked.clear();
+
+                        ///// *** NB ***
+                        ///// Non reinizializzo l'array, aggiungo quello che trovo
+
 
                         IPFilename = IPFile.getAbsolutePath();
                         lblFilename.setText(IPFilename);
@@ -207,11 +213,12 @@ public class RipeQueryUI {
         cancellaTuttoButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                int choice = JOptionPane.showConfirmDialog(mainPanel, "Cancello tutto gli IP da controllare?", "Conferma", JOptionPane.OK_CANCEL_OPTION);
+                int choice = JOptionPane.showConfirmDialog(mainPanel, "Cancello tutti gli IP da controllare e controllati?", "Conferma", JOptionPane.OK_CANCEL_OPTION);
                 if (choice != JOptionPane.OK_OPTION) {
                     return;
                 }
                 txtIpList.setText("");
+                txtResults.setText("");
                 IPToBeChecked.clear();
                 lblStatus.setText("Numero IP validi: " + IPToBeChecked.size());
                 btnIniziaAnalisi.setEnabled(false);
