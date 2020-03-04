@@ -4,8 +4,11 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.event.*;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -19,16 +22,20 @@ public class RipeQueryUI {
     private JPanel mainPanel;
     private JButton btnIniziaAnalisi;
     private JLabel lblStatus;
+    private JTextArea txtIpList;
+    private JButton cancellaTuttoButton;
 
     String IPFilename;
     File IPFile;
-    ArrayList<String> IPToBeChecked;
+    ArrayList<String> IPToBeChecked = new ArrayList<>();
+
+    private static String IPRegexp = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$";
 
     public RipeQueryUI() {
         // Margine personalizzato nelle label
-        Border margin = new EmptyBorder(4,4,4,4);
+        Border margin = new EmptyBorder(4, 4, 4, 4);
         lblFilename.setBorder(new CompoundBorder(
-                new LineBorder(Color.BLACK,1,true),
+                new LineBorder(Color.BLACK, 1, true),
                 margin
         ));
 
@@ -47,12 +54,13 @@ public class RipeQueryUI {
                         JOptionPane.showMessageDialog(mainPanel, IPFile.getAbsolutePath() + "\nFile non trovato", "Errore", JOptionPane.ERROR_MESSAGE);
                     } else {
                         // Reinizializzo l'array
-                        IPToBeChecked = new ArrayList<>();
+                        //IPToBeChecked = new ArrayList<>();
+                        IPToBeChecked.clear();
 
                         IPFilename = IPFile.getAbsolutePath();
                         lblFilename.setText(IPFilename);
 
-                        parseFile();
+                        parseFile(); // Aggiorno l'array IPToBeChecked
                         lblStatus.setText("Numero IP validi: " + IPToBeChecked.size());
 
                         // Se ne trovo almeno uno attivo il bottone della ricerca
@@ -63,6 +71,11 @@ public class RipeQueryUI {
                         }
 
                         txtResults.setText("");
+                        txtIpList.setText("");
+                        for (String IP : IPToBeChecked) {
+                            txtIpList.append(IP);
+                            txtIpList.append("\n");
+                        }
                     }
                 }
             }
@@ -91,6 +104,119 @@ public class RipeQueryUI {
 
             }
         });
+
+        // Creo il popup menu per l'incolla IP
+        JPopupMenu popupMenu = new JPopupMenu("Incolla IP da controllare");
+        JMenuItem menuItem = new JMenuItem("Incolla IP");
+        menuItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //JOptionPane.showMessageDialog(mainPanel,"TODO", "Info", JOptionPane.INFORMATION_MESSAGE);
+                Clipboard sysClip = Toolkit.getDefaultToolkit().getSystemClipboard();
+                Transferable clipTf = sysClip.getContents(null);
+                if (clipTf != null) {
+                    if (clipTf.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                        try {
+                            String values = (String) clipTf.getTransferData(DataFlavor.stringFlavor);
+                            // Parsing del conteno per verificare se ci sono IP
+                            String[] lines = values.split("\\r?\\n");
+                            for (String linea:lines){
+                                if (linea.matches(IPRegexp)) {
+                                    IPToBeChecked.add(linea);
+                                    txtIpList.append(linea);
+                                    txtIpList.append("\n");
+                                    //  System.out.println("ok");
+                                } else {
+                                    //  System.out.println("IP non valido");
+                                }
+                            }
+                            lblStatus.setText("Numero IP validi: " + IPToBeChecked.size());
+                            if (IPToBeChecked.size()>0){
+                                btnIniziaAnalisi.setEnabled(true);
+                            } else {
+                                btnIniziaAnalisi.setEnabled(false);
+                            }
+                            //txtIpList.append(values);
+                        } catch (UnsupportedFlavorException ex) {
+                            ex.printStackTrace();
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+
+                    }
+                }
+            }
+        });
+        popupMenu.add(menuItem);
+
+        // Aggiungo il mouse listener al componente giusto
+        txtIpList.addMouseListener(new MouseListener() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                showPopup(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                showPopup(e);
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+
+            }
+
+            private void showPopup(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    popupMenu.show(e.getComponent(),
+                            e.getX(), e.getY());
+                }
+            }
+        });
+
+//        // Intercetto il control+v
+//        txtIpList.addKeyListener(new KeyListener() {
+//            @Override
+//            public void keyTyped(KeyEvent e) {
+//
+//            }
+//
+//            @Override
+//            public void keyPressed(KeyEvent e) {
+//                if ((e.getKeyCode() == KeyEvent.VK_C) && ((e.getModifiers() & KeyEvent.CTRL_MASK) != 0)) {
+//                    System.out.println("woot!");
+//                }
+//            }
+//
+//            @Override
+//            public void keyReleased(KeyEvent e) {
+//
+//            }
+//        });
+
+        cancellaTuttoButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int choice = JOptionPane.showConfirmDialog(mainPanel, "Cancello tutto gli IP da controllare?", "Conferma", JOptionPane.OK_CANCEL_OPTION);
+                if (choice != JOptionPane.OK_OPTION) {
+                    return;
+                }
+                txtIpList.setText("");
+                IPToBeChecked.clear();
+                lblStatus.setText("Numero IP validi: " + IPToBeChecked.size());
+                btnIniziaAnalisi.setEnabled(false);
+            }
+        });
     }
 
     private void parseFile() {
@@ -99,11 +225,11 @@ public class RipeQueryUI {
             while ((linea = bfr.readLine()) != null) {
                 // Check se è un IP valido
                 //System.out.print(linea + " : ");
-                if (linea.matches("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")) {
+                if (linea.matches(IPRegexp)) {
                     IPToBeChecked.add(linea);
-                  //  System.out.println("ok");
+                    //  System.out.println("ok");
                 } else {
-                  //  System.out.println("IP non valido");
+                    //  System.out.println("IP non valido");
                 }
             }
         } catch (IOException e) {
