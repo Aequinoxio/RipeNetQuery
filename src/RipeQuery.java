@@ -16,69 +16,44 @@ public class RipeQuery {
     String m_jsonData;
     Proxy proxy = Proxy.NO_PROXY;
 
+    private LocationData locationData = new LocationData();
+
     /**
      * Costruttore
      * Imposta il proxy di sistema
      */
     public RipeQuery() {
+        // Imposto il proxy
         getProxy();
     }
 
+
     /**
-     * Interroga stats.ripe.net per IP allo scopo di ottenere la country relativa
-     * TODO: Gestire meglio le eccezioni separandole per tipo (download json, interpretazione ecc.)
-     * TODO: compattare i metodi in modo da avere solo quello country che fa tutto
-     * @param IpValue Indirizzo IP di cui conoscere la country. Modifica lo stato interno della classe con il json ritornato.
-     * @return Stato della query
+     * Contatta stats.ripe.net ed analizza lo stream estraendo i dati della prima location
+     * Se tutto va bene esegue il parsing dello stream ed imposta l'oggetto interno delal classe LocationData
+     * Se ci sono stati problemi di connessione o di parsing lancia l'eccezione relativa
+     * @return Codice di stato della chiamata al sito
      */
-    public HttpStatusCodes queryIPAddressForCountry(String IpValue) {
+    public HttpStatusCodes downloadAndParseLocationData(String IpValue) throws IOException, ClassCastException {
+        //String retVal="Unknown";
+        boolean status=false;
         HttpStatusCodes respReturnCode=HttpStatusCodes.UNKNOWN_CODE;
 
-        HttpsURLConnection urlConnection ;
-        try {
-            URL url = new URL(RipeUrl + IpValue);
-            urlConnection = (HttpsURLConnection) url.openConnection(proxy);
+        respReturnCode = queryIPAddressForCountry(IpValue);
 
-            // Indispensabile altrimenti si ottiene un errore 403
-            urlConnection.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0");
-
-            int respCode = urlConnection.getResponseCode();
-            respReturnCode = HttpStatusCodes.intToHttpStatusCode(respCode);
-            if (respCode==200){
-                m_jsonData = getData(urlConnection);
-            } else {
-                m_jsonData=null;
-            }
-//            switch (respCode) {
-//                case 200:
-//                    m_jsonData = getData(urlConnection);
-//                    //retVal = true;
-//                    break;
-//                default:
-//                    //retVal = false;
-//                    System.out.println(RipeUrl + IpValue);
-//                    System.out.println("Other than ok: " + respCode+" "+respReturnCode);
-//            }
-        } catch (IOException ex) {
-            //ex.printStackTrace();
+        // Se non ho ottenuto nulla ritorno il codice di errore e basta, altrimenti faccio il parsing dello stream
+        if (m_jsonData==null || m_jsonData.isEmpty()){
+            return respReturnCode;
         }
 
-        //return retVal;
-        return respReturnCode;
-    }
-
-    /**
-     * Ritorna la country nello stream interrogato.
-     * @return Contry relativa all'IP interrogato, null se non è stato trovato oin caso di errore
-     */
-    public String country(){
-        String retVal="Unknown";
+        // Parsing dello stream
         StringReader sr = new StringReader(m_jsonData);
         JsonReader jsonReader = Json.createReader(sr);
         JsonObject joMain = jsonReader.readObject();
         jsonReader.close();
 
-        // Controllo tutti i rami per capire se esistono (ad es. 231.4.5.6 ha l'array dell locations vuoto)
+        // Controllo tutti i rami per capire se esistono (ad es. 231.4.5.6 ha l'array delle locations vuoto)
+        // TODO: per robustezza verificare come passare il fatto che ci può essere un errore nel parsing del json (eccezione?)
         JsonObject data = joMain.getJsonObject("data");
         if (data!=null) {
             JsonArray locatedResources = data.getJsonArray("located_resources");
@@ -89,17 +64,69 @@ public class RipeQuery {
                     if (locations != null && locations.size() > 0) {
                         JsonObject firstLocation = locations.getJsonObject(0);
                         if (firstLocation != null) {
-                            retVal = firstLocation.getString("country");
+                            //retVal = firstLocation.getString("country");
+                            locationData.country=firstLocation.getString("country");
+                            locationData.city=firstLocation.getString("city");
+                            locationData.latitude=firstLocation.getJsonNumber("latitude").doubleValue();
+                            locationData.longitude=firstLocation.getJsonNumber("longitude").doubleValue();
+                            locationData.covered_percentage=firstLocation.getJsonNumber("covered_percentage").doubleValue();
+                            //status=true;
                         }
                     }
                 }
             }
         }
 
-        return retVal;
+        return respReturnCode;
+    }
+
+    public String getCountry(){
+        return locationData.country;
+    }
+
+    public String getCity(){
+        return locationData.city;
+    }
+
+    public double getLatitude(){
+        return locationData.latitude;
+
+    }
+    public double getLongitude(){
+        return locationData.longitude;
+    }
+
+    public double getCoveredPercentage(){
+        return locationData.covered_percentage;
     }
 
     ///////// PRIVATE METHODS /////////
+
+    /**
+     * Interroga stats.ripe.net per IP allo scopo di ottenere la country relativa
+     * @param IpValue Indirizzo IP di cui conoscere la country. Modifica lo stato interno della classe con il json ritornato.
+     * @return Stato della query
+     */
+    private HttpStatusCodes queryIPAddressForCountry(String IpValue) throws IOException {
+        HttpStatusCodes respReturnCode=HttpStatusCodes.UNKNOWN_CODE;
+
+        HttpsURLConnection urlConnection ;
+        URL url = new URL(RipeUrl + IpValue);
+        urlConnection = (HttpsURLConnection) url.openConnection(proxy);
+
+        // Indispensabile altrimenti si ottiene un errore 403
+        urlConnection.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0");
+
+        int respCode = urlConnection.getResponseCode();
+        respReturnCode = HttpStatusCodes.intToHttpStatusCode(respCode);
+        if (respCode==200){
+            m_jsonData = getData(urlConnection);
+        } else {
+            m_jsonData=null;
+        }
+        return respReturnCode;
+    }
+
 
     /**
      * Ritorna la pagina letta da un HttpURLConnection aperta
@@ -137,19 +164,13 @@ public class RipeQuery {
         } else {
             proxy = Proxy.NO_PROXY;
         }
-//        if (l != null) {
-//            for (Iterator iter = l.iterator(); iter.hasNext();) {
-//                java.net.Proxy proxy = (java.net.Proxy) iter.next();
-//                System.out.println("proxy hostname : " + proxy.type());
-//                InetSocketAddress addr = (InetSocketAddress) proxy.address();
-//                if (addr == null) {
-//                    System.out.println("No Proxy");
-//                }
-//                else {
-//                    System.out.println("proxy hostname : " + addr.getHostName());
-//                    System.out.println("proxy port : " + addr.getPort());
-//                }
-//            }
-//        }
+    }
+
+    class LocationData{
+        String country;
+        String city;
+        double longitude;
+        double latitude;
+        double covered_percentage;
     }
 }
