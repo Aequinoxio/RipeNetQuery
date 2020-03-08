@@ -1,30 +1,33 @@
-import javax.json.Json;
-import javax.json.JsonArray;
-import javax.json.JsonObject;
-import javax.json.JsonReader;
+/* ******************************************************************************
+ * Copyright (c) 2020. This code follow the GPL v3 license scheme.
+ ******************************************************************************/
+
+import javax.json.*;
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 public class RipeQuery {
-    static ArrayList<String> IPToBeChecked = new ArrayList<>();
-    static String RipeUrl = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
+    //private ArrayList<String> IPToBeChecked = new ArrayList<>();
+    private final String RipeUrl = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
     String m_jsonData;
     Proxy proxy = Proxy.NO_PROXY;
 
-    private LocationData locationData = new LocationData();
+    private LocationData locationData; // = new LocationData();
+    private final ArrayList<LocationData> locationDataArrayList = new ArrayList<>();
 
+    private final DownloadUpdateCallback downloadUpdateCallback;
     /**
      * Costruttore
      * Imposta il proxy di sistema
      */
-    public RipeQuery() {
+    public RipeQuery(DownloadUpdateCallback downloadUpdateCallback) {
         // Imposto il proxy
         getProxy();
+        this.downloadUpdateCallback=downloadUpdateCallback;
     }
 
 
@@ -36,7 +39,7 @@ public class RipeQuery {
      */
     public HttpStatusCodes downloadAndParseLocationData(String IpValue) throws IOException, ClassCastException {
         //String retVal="Unknown";
-        boolean status=false;
+       // boolean status=false;
         HttpStatusCodes respReturnCode=HttpStatusCodes.UNKNOWN_CODE;
 
         respReturnCode = queryIPAddressForCountry(IpValue);
@@ -55,22 +58,66 @@ public class RipeQuery {
         // Controllo tutti i rami per capire se esistono (ad es. 231.4.5.6 ha l'array delle locations vuoto)
         // TODO: per robustezza verificare come passare il fatto che ci può essere un errore nel parsing del json (eccezione?)
         JsonObject data = joMain.getJsonObject("data");
+        String IPResource;
         if (data!=null) {
             JsonArray locatedResources = data.getJsonArray("located_resources");
             if (locatedResources!=null && locatedResources.size()>0) {
+
+                // Sembra che located resources nelle query per IP ritorni sempre un array con un solo elemento
+                // N.B. nelle query per AS ritorna un array con più elementi - Tenerne conto in caso di estenda la classe per altri tipi di query
                 JsonObject firstLocatedResource = locatedResources.getJsonObject(0);
                 if (firstLocatedResource!=null) {
+                    //IPResource = firstLocatedResource.getString("resource");
+                    //locationData.IP= IPResource;
                     JsonArray locations = firstLocatedResource.getJsonArray("locations");
+
                     if (locations != null && locations.size() > 0) {
-                        JsonObject firstLocation = locations.getJsonObject(0);
-                        if (firstLocation != null) {
-                            //retVal = firstLocation.getString("country");
-                            locationData.country=firstLocation.getString("country");
-                            locationData.city=firstLocation.getString("city");
-                            locationData.latitude=firstLocation.getJsonNumber("latitude").doubleValue();
-                            locationData.longitude=firstLocation.getJsonNumber("longitude").doubleValue();
-                            locationData.covered_percentage=firstLocation.getJsonNumber("covered_percentage").doubleValue();
-                            //status=true;
+                        // Ciclo sull'array delle locations
+                        for (int i=0;i< locations.size();i++) {
+
+                            JsonObject locationObject = locations.getJsonObject(i);
+
+                            if (locationObject != null) {
+                                try {
+
+                                    // Estraggo tutte le eventuali resources  associate all'ip interrogato
+                                    // e le aggiungo all'array che rappresenta la risposta: un oggetto per
+                                    // ciascuna resource
+                                    JsonArray resourcesArray = locationObject.getJsonArray("resources");
+
+                                    // Devo fare un ciclo esplicito e non un for(JsonValue resourceValue : resourcesArray)
+                                    // perché altrimenti il valore dell'array comprende le virgolettte
+                                    for (int j = 0 ;j< resourcesArray.size();j++){
+                                        //String resourceString = resourcesArray.getString(j);
+
+                                        locationData = new LocationData();
+
+                                        locationData.IPQueried = IpValue;
+                                        locationData.resource= resourcesArray.getString(j);
+                                        locationData.country = locationObject.getString("country");
+                                        locationData.city = locationObject.getString("city");
+                                        locationData.latitude = locationObject.getJsonNumber("latitude").doubleValue();
+                                        locationData.longitude = locationObject.getJsonNumber("longitude").doubleValue();
+                                        locationData.covered_percentage = locationObject.getJsonNumber("covered_percentage").doubleValue();
+
+                                        locationData.search_time=joMain.getString("time");
+
+                                        locationData.query_time=data.getJsonObject("parameters").getString("query_time");
+                                        locationData.latest_time=data.getString("latest_time");
+                                        locationData.earliest_time=data.getString("earliest_time");
+                                        locationData.result_time=data.getString("result_time");
+
+                                        locationDataArrayList.add(locationData);
+
+                                        if (downloadUpdateCallback!=null){
+                                            downloadUpdateCallback.update(IpValue+ " - "+ locationData.resource);
+                                        }
+                                    }
+                                } catch (NullPointerException | ClassCastException e){
+                                    e.printStackTrace();
+                                }
+
+                            }
                         }
                     }
                 }
@@ -80,23 +127,40 @@ public class RipeQuery {
         return respReturnCode;
     }
 
-    public String getCountry(){
+    public ArrayList<LocationData> getAllLocationsData(){
+        // Deep copy
+        ArrayList<LocationData> temp = new ArrayList<>();
+        try {
+            for (LocationData loc : locationDataArrayList) {
+                temp.add((LocationData) loc.clone());
+            }
+        } catch (CloneNotSupportedException e) {
+            e.printStackTrace();
+        }
+
+        return temp;
+    }
+
+    public String getLatestResource(){
+        return locationData.resource;
+    }
+    public String getLatestCountry(){
         return locationData.country;
     }
 
-    public String getCity(){
+    public String getLatestCity(){
         return locationData.city;
     }
 
-    public double getLatitude(){
+    public double getLatestLatitude(){
         return locationData.latitude;
 
     }
-    public double getLongitude(){
+    public double getLatestLongitude(){
         return locationData.longitude;
     }
 
-    public double getCoveredPercentage(){
+    public double getLatestCoveredPercentage(){
         return locationData.covered_percentage;
     }
 
@@ -145,12 +209,16 @@ public class RipeQuery {
         while ((line = reader.readLine()) != null) {
             sb.append(line);
         }
+
+        // Per sicurezza
+        reader.close();
+        data.close();
         return sb.toString();
     }
 
     private void getProxy(){
         System.setProperty("java.net.useSystemProxies", "true");
-        List l = null;
+        List<Proxy> l = null;
         try {
             l = ProxySelector.getDefault().select(new URI("https://stats.ripe.net"));
         }
@@ -160,17 +228,30 @@ public class RipeQuery {
 
         // Prendo il primo proxy disponibile tra quelli definiti a sistema
         if (l!=null) {
-            proxy = (Proxy) l.get(0);
+            proxy = l.get(0);
         } else {
             proxy = Proxy.NO_PROXY;
         }
     }
 
-    class LocationData{
+    static class LocationData implements Cloneable{
+        String IPQueried;
+        String search_time;
+        String resource;
         String country;
         String city;
         double longitude;
         double latitude;
         double covered_percentage;
+
+        String query_time;
+        String latest_time;
+        String result_time;
+        String earliest_time;
+
+        @Override
+        protected Object clone() throws CloneNotSupportedException {
+            return super.clone();
+        }
     }
 }

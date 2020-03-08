@@ -1,3 +1,8 @@
+
+/* ******************************************************************************
+ * Copyright (c) 2020. This code follow the GPL v3 license scheme.
+ ******************************************************************************/
+
 import java.util.HashMap;
 
 /**
@@ -83,7 +88,7 @@ public enum HttpStatusCodes {
     private String desc;
     private String codeText;
 
-    private static java.util.Map<Integer, HttpStatusCodes> CONVERSION_MAP = new HashMap<>();
+    private final static java.util.Map<Integer, HttpStatusCodes> CONVERSION_MAP = new HashMap<>();
     static {
         for (HttpStatusCodes type : HttpStatusCodes.values()) {
             CONVERSION_MAP.put(type.code,type);

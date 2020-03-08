@@ -1,3 +1,7 @@
+/* ******************************************************************************
+ * Copyright (c) 2020. This code follow the GPL v3 license scheme.
+ ******************************************************************************/
+
 import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
@@ -6,10 +10,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class RipeQueryCmdLine {
-    static ArrayList<String> IPToBeChecked = new ArrayList<>();
+    static final ArrayList<String> IPToBeChecked = new ArrayList<>();
 
     public static void main(@NotNull String[] args) {
-        RipeQuery ripeQueryCmdLine = new RipeQuery();
+        RipeQuery ripeQueryCmdLine = new RipeQuery(null);
         if (args.length > 0) {
             String ipFile = args[0];
             //String ipFile = "C:\\Users\\utente\\Downloads\\temp\\ip.txt";
@@ -35,13 +39,13 @@ public class RipeQueryCmdLine {
         }
         System.out.println("Checking...");
         for (String ip : IPToBeChecked) {
-            HttpStatusCodes retval = null;
+            HttpStatusCodes retval ;
             try {
                 //retval = ripeQueryCmdLine.queryIPAddressForCountry(ip);
                 retval = ripeQueryCmdLine.downloadAndParseLocationData(ip);
                 if (retval == HttpStatusCodes.OK) {
                     //System.out.println(ripeQueryCmdLine.m_jsonData);
-                    System.out.println(ip + " - " + ripeQueryCmdLine.getCountry());
+                    System.out.println(ip + " - " + ripeQueryCmdLine.getLatestCountry());
                 } else {
                     System.out.print(ip + " - Error: ");
                     System.out.println(retval + " " + retval.getCode() + " " + retval.getCodeAsText() + " " + retval.getDesc());
