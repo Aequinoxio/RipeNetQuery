@@ -2,6 +2,8 @@
  * Copyright (c) 2020. This code follow the GPL v3 license scheme.
  ******************************************************************************/
 
+import org.jetbrains.annotations.NonNls;
+
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
@@ -18,12 +20,46 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.*;
 import java.util.List;
 import java.util.prefs.Preferences;
 
 public class RipeQueryUI {
+    @NonNls
+    private static final String VERSIONE = "Versione stabile 1.1";
+
+    @NonNls
+    private static final String MY_BUNDLE = "strings";
+    private static final ResourceBundle StringBundle = ResourceBundle.getBundle(MY_BUNDLE, Locale.getDefault());
+
+    private static final String INFORMAZIONE_TITLE_DIALOG =StringBundle.getString("informazione") ;
+    private static final String DLG_DATICOPIATI =StringBundle.getString("dati.copiati") ;
+    private static final String DLG_ERRORE = StringBundle.getString("errore");
+    private static final String DLG_FILE_IP_DUPLICATES = StringBundle.getString("il.file.non.contiene.ip.validi.o.sono.gia.presenti.nella.lista");
+    private static final String DLG_FILE_IP_ERROR = StringBundle.getString("il.file.non.contiene.ip.validi");
+    private static final String STATUS_WORKING = StringBundle.getString("working");
+    private static final String INCOLLA_IP_DA_CONTROLLARE = StringBundle.getString("incolla.ip.da.controllare");
+    private static final String INCOLLA_IP = StringBundle.getString("incolla.ip");
+    private static final String COPIA_LOG = StringBundle.getString("copia.log");
+    private static final String COPIA_DATI = StringBundle.getString("copia.dati");
+    private static final String CANCELLO_TUTTI_GLI_IP_DA_CONTROLLARE_E_CONTROLLATI = StringBundle.getString("cancello.tutti.gli.ip.da.controllare.e.controllati");
+    private static final String CONFERMA = StringBundle.getString("conferma");
+    private static final String ABOUT = StringBundle.getString("about");
+
+    private static final String CLIPBOARD_ERROR_IP_DUPLICATES_OR_INVALID = StringBundle.getString("gli.appunti.non.contengono.ip.validi.o.sono.gia.presenti.nella.lista");
+    private static final String LA_CLIPBOARD_NON_CONTIENE_ALCUN_IP_VALIDO = StringBundle.getString("la.clipboard.non.contiene.alcun.ip.valido");
+    private static final String NUMERO_IP_VALIDI = StringBundle.getString("numero.ip.validi");
+    private static final String IP_DUPLICATI = StringBundle.getString("ip.duplicati");
+    private static final String CARICATI = StringBundle.getString("caricati");
+    private static final String IP_DAL_FILE = StringBundle.getString("ip.dal.file");
+    private static final String FILE_NON_TROVATO = StringBundle.getString("nfile.non.trovato");
+    private static final String FILE_ESISTE_SOVRASCRIVO = StringBundle.getString("nfile.esiste.n.sovrascrivo");
+    private static final String FILE = StringBundle.getString("file.n");
+    private static final String SALVATO_CON_SUCCESSO = StringBundle.getString("n.salvato.con.successo");
+    private static final String ERRORE_NEL_SALVARE_IL_FILE = StringBundle.getString("errore.nel.salvare.il.file.n");
+    private static final String REGEXP_SPLIT_LINES = "\\r?\\n";
+
+
     private JButton btnOpenFile;
     private JTextArea txtResults;
     private JPanel mainPanel;
@@ -41,7 +77,9 @@ public class RipeQueryUI {
     private DefaultTableModel tblResultModel;
     private JLabel lblQueryResult;
 
+
     // Provo a riaprire il file chooser dall'ultima posizione salvata
+    @NonNls
     private final static String LAST_USED_FOLDER = "RipeQueryUI.LAST_USED_FOLDER";
     private final Preferences prefs = Preferences.userRoot().node(getClass().getName());
     private final JFileChooser jFileChooser = new JFileChooser(
@@ -53,12 +91,27 @@ public class RipeQueryUI {
     File IPFile;
     private final ArrayList<String> IPToBeChecked = new ArrayList<>();
 
+    @NonNls
     private final static String IPRegexp = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\/\\d+){0,1}$";
 
+    private static final String NUM = "Num";
+    private static final String SEARCHED_IP = "Searched IP";
+    private static final String SEARCH_TIME = "Search time";
+    private static final String RESOURCE = "Resource";
+    private static final String COUNTRY = "Country";
+    private static final String CITY = "City";
+    private static final String COVERED_PERCENTAGE = "Covered percentage";
+    private static final String LONGITUDE = "Longitude";
+    private static final String LATITUDE = "Latitude";
+    private static final String QUERY_TIME = "Query time";
+    private static final String LATEST_TIME = "Latest time";
+    private static final String RESULT_TIME = "Result time";
+    private static final String EARLIEST_TIME = "Earliest time";
     private final static Object[] ColumnsName = new Object[]{
-            "Num", "Searched IP", "Search time", "Resource", "Country", "City",
-            "Latitude", "Longitude", "Covered percentage",
-            "Query time", "Latest time", "Result time", "Earliest time"};
+            NUM, SEARCHED_IP, SEARCH_TIME, RESOURCE, COUNTRY, CITY,
+            LATITUDE, LONGITUDE, COVERED_PERCENTAGE,
+            QUERY_TIME, LATEST_TIME, RESULT_TIME, EARLIEST_TIME};
+
 
     public RipeQueryUI() {
         // Margine personalizzato nelle label
@@ -85,7 +138,7 @@ public class RipeQueryUI {
                     prefs.put(LAST_USED_FOLDER, IPFile.getParent());
 
                     if (!IPFile.exists()) {
-                        JOptionPane.showMessageDialog(mainPanel, IPFile.getAbsolutePath() + "\nFile non trovato", "Errore", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(mainPanel, IPFile.getAbsolutePath() + FILE_NON_TROVATO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
                     } else {
                         ///// Non reinizializzo l'array, aggiungo quello che trovo
 
@@ -95,10 +148,10 @@ public class RipeQueryUI {
 
                         int startingIPNumbers = IPToBeChecked.size();
                         int skippedIP = parseFile(); // Aggiorno l'array IPToBeChecked
-                        lblStatus.setText("Numero IP validi: " + IPToBeChecked.size() +
-                                " - IP duplicati: " + skippedIP);
+                        lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size() +
+                                IP_DUPLICATI + skippedIP);
 
-                        txtResults.append("Caricati "+ (IPToBeChecked.size() - startingIPNumbers) +" IP dal file "+IPFilename+" "+"\n");
+                        txtResults.append(CARICATI + (IPToBeChecked.size() - startingIPNumbers) + IP_DAL_FILE +IPFilename+" "+"\n");
 
                         // Se ne trovo almeno uno attivo il bottone della ricerca
                         if (IPToBeChecked.size() > 0) {
@@ -107,13 +160,13 @@ public class RipeQueryUI {
 
                             // Se non ho aggiunto ip ne do info
                             if (IPToBeChecked.size() == startingIPNumbers) {
-                                JOptionPane.showMessageDialog(mainPanel, "Il file non contiene IP validi o sono già presenti nella lista", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+                                JOptionPane.showMessageDialog(mainPanel, DLG_FILE_IP_DUPLICATES, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                             }
 
                         } else {
                             btnIniziaAnalisi.setEnabled(false);
                             btnCancellaTutto.setEnabled(false);
-                            JOptionPane.showMessageDialog(mainPanel, "Il file non contiene IP validi", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+                            JOptionPane.showMessageDialog(mainPanel, DLG_FILE_IP_ERROR, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
 
                         }
 
@@ -133,7 +186,7 @@ public class RipeQueryUI {
             public void actionPerformed(ActionEvent e) {
                 btnIniziaAnalisi.setEnabled(false);
                 pbWorking.setVisible(true);
-                lblStatusBar.setText("Working...");
+                lblStatusBar.setText(STATUS_WORKING);
                 txtResults.setText("");
                 tblResultModel.setRowCount(0);
 
@@ -216,8 +269,8 @@ public class RipeQueryUI {
         });
 
         // Creo il popup menu per l'incolla IP nella jtextarea specifica
-        JPopupMenu IPListPopupMenu = new JPopupMenu("Incolla IP da controllare");
-        JMenuItem incollaIPMenuItem = new JMenuItem("Incolla IP");
+        JPopupMenu IPListPopupMenu = new JPopupMenu(INCOLLA_IP_DA_CONTROLLARE);
+        JMenuItem incollaIPMenuItem = new JMenuItem(INCOLLA_IP);
         incollaIPMenuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -265,8 +318,8 @@ public class RipeQueryUI {
 
         // Aggiungo un popup menu anche nella textarea del log
         // Creo il popup menu per l'incolla IP nella jtextarea specifica
-        JPopupMenu logPopupMenu = new JPopupMenu("Copia log");
-        JMenuItem logMenuItem = new JMenuItem("Copia log");
+        JPopupMenu logPopupMenu = new JPopupMenu(COPIA_LOG);
+        JMenuItem logMenuItem = new JMenuItem(COPIA_LOG);
         logMenuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -314,8 +367,8 @@ public class RipeQueryUI {
         ////////////
         // Aggiungo un popup menu anche nella tabella dei risultati
         // Creo il popup menu per l'incolla IP nella jtextarea specifica
-        JPopupMenu resultsTablePopupMenu = new JPopupMenu("Copia dati");
-        JMenuItem resultsTableMenuItem = new JMenuItem("Copia dati");
+        JPopupMenu resultsTablePopupMenu = new JPopupMenu(COPIA_DATI);
+        JMenuItem resultsTableMenuItem = new JMenuItem(COPIA_DATI);
         resultsTableMenuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -365,8 +418,8 @@ public class RipeQueryUI {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int choice = JOptionPane.showConfirmDialog(mainPanel,
-                        "Cancello tutti gli IP da controllare e controllati?",
-                        "Conferma",
+                        CANCELLO_TUTTI_GLI_IP_DA_CONTROLLARE_E_CONTROLLATI,
+                        CONFERMA,
                         JOptionPane.OK_CANCEL_OPTION);
 
                 if (choice != JOptionPane.OK_OPTION) {
@@ -376,7 +429,7 @@ public class RipeQueryUI {
                 txtIpList.setText("");
                 txtResults.setText("");
                 IPToBeChecked.clear();
-                lblStatus.setText("Numero IP validi: " + IPToBeChecked.size());
+                lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
                 btnIniziaAnalisi.setEnabled(false);
                 tblResultModel.setRowCount(0);
                 btnCancellaTutto.setEnabled(false);
@@ -415,15 +468,15 @@ public class RipeQueryUI {
                     prefs.put(LAST_USED_FOLDER, saveFileChoosen.getParent());
 
                     if (saveFileChoosen.exists()) {
-                        int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + "\nFile esiste\n Sovrascrivo?", "Informazione", JOptionPane.OK_CANCEL_OPTION);
+                        int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + FILE_ESISTE_SOVRASCRIVO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.OK_CANCEL_OPTION);
                         if (chosenOption != JOptionPane.OK_OPTION) {
                             return;
                         }
                     }
                     if (saveFile(saveFileChoosen)) {
-                        JOptionPane.showMessageDialog(mainPanel, "File:\n" + saveFileChoosen.getAbsolutePath() + "\n salvato con successo ", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                     } else {
-                        JOptionPane.showMessageDialog(mainPanel, "Errore nel salvare il file:\n" + saveFileChoosen.getAbsolutePath(), "Informazione", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                     }
                 }
             }
@@ -434,18 +487,18 @@ public class RipeQueryUI {
         StringSelection stringSelection = new StringSelection(tableToString());
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(stringSelection, null);
-        JOptionPane.showMessageDialog(mainPanel, "Dati copiati", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(mainPanel, DLG_DATICOPIATI, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void copiaLogSuClipboard() {
         if (txtResults.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(mainPanel, "Nessun dato da copiare è presente nella log area", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(mainPanel, StringBundle.getString("nessun.dato.da.copiare.e.presente.nella.log.area"), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         StringSelection stringSelection = new StringSelection(txtResults.getText());
         clipboard.setContents(stringSelection, null);
-        JOptionPane.showMessageDialog(mainPanel, "Dati copiati", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(mainPanel, DLG_DATICOPIATI, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
     }
 
 
@@ -512,11 +565,11 @@ public class RipeQueryUI {
 
         JMenuBar menuBar = new JMenuBar();
         JMenu jMenuQuestion = new JMenu("?");
-        JMenuItem jMenuItemAbout = new JMenuItem("About");
+        JMenuItem jMenuItemAbout = new JMenuItem(ABOUT);
         jMenuItemAbout.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JOptionPane.showMessageDialog(frame,"Versione 6","Informazione",JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(frame, VERSIONE,INFORMAZIONE_TITLE_DIALOG,JOptionPane.INFORMATION_MESSAGE);
             }
         });
         jMenuQuestion.add(jMenuItemAbout);
@@ -580,7 +633,7 @@ public class RipeQueryUI {
                     String values = (String) clipTf.getTransferData(DataFlavor.stringFlavor);
                     // Parsing del contenuto per verificare se ci sono IP
                     // Dividol'analisi per righe
-                    String[] lines = values.split("\\r?\\n");
+                    String[] lines = values.split(REGEXP_SPLIT_LINES);
                     int skippedIP = 0;
                     for (String linea : lines) {
                         if (linea.matches(IPRegexp)) {
@@ -595,8 +648,8 @@ public class RipeQueryUI {
                         }
                     }
 
-                    lblStatus.setText("Numero IP validi: " + IPToBeChecked.size() +
-                            " - IP duplicati: " + skippedIP
+                    lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size() +
+                            IP_DUPLICATI + skippedIP
                     );
 
 //                    +
@@ -605,19 +658,19 @@ public class RipeQueryUI {
 
                     if (IPToBeChecked.size() > 0) {
                         if (IPToBeChecked.size() == startingIPNumbers) {
-                            JOptionPane.showMessageDialog(mainPanel, "Gli appunti non contengono IP validi o sono già presenti nella lista", "Informazione", JOptionPane.INFORMATION_MESSAGE);
+                            JOptionPane.showMessageDialog(mainPanel, CLIPBOARD_ERROR_IP_DUPLICATES_OR_INVALID, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                         }
 
                         btnIniziaAnalisi.setEnabled(true);
                         btnCancellaTutto.setEnabled(true);
                     } else {
-                        JOptionPane.showMessageDialog(mainPanel, "La Clipboard non contiene alcun ip valido", "Errore", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(mainPanel, LA_CLIPBOARD_NON_CONTIENE_ALCUN_IP_VALIDO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
                         btnIniziaAnalisi.setEnabled(false);
                         btnCancellaTutto.setEnabled(false);
                     }
 
                 } catch (UnsupportedFlavorException | IOException ex) {
-                    JOptionPane.showMessageDialog(mainPanel, "La Clipboard non contiene alcun ip valido", "Errore", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainPanel, LA_CLIPBOARD_NON_CONTIENE_ALCUN_IP_VALIDO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
                     ex.printStackTrace();
                 }
 
@@ -627,6 +680,10 @@ public class RipeQueryUI {
     }
 
     class DownloadWorker extends SwingWorker<ArrayList<RipeQuery.LocationData>, String> implements DownloadUpdateCallback {
+        private static final String ERROR = " - Error: \t";
+        private static final String IP = "IP: ";
+        private static final String FINISHED_FETCHED = "Finished. Fetched ";
+        private static final String IP1 = " IP";
         int masterCounter = 1; // Contatore per gli IP in tabella
         int masterPublishCounter = 0; // Contatore per gli IP trattati e pubblicati. Potrebbero essere lo stesso valore ma il primo è
                                         // aggiornato in fase di update della tabella, l'altro per ogni IP recuperato dalla classe RipeQuery
@@ -650,14 +707,14 @@ public class RipeQueryUI {
                     // loggo gli errori e proseguo con il successivo IP
                     if (retval != HttpStatusCodes.OK) {
 
-                        publish(ip + " - Error: \t" +
+                        publish(ip + ERROR +
                                 retval + " " + retval.getCode() + " " + retval.getCodeAsText() + " " + retval.getDesc());
 
                         // In caso di errore metto nei log un messaggio di errore e proseguo con gli altri IP
                         continue;
                     }
                 } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(mainPanel, ex.toString(), "Errore", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(mainPanel, ex.toString(), DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
                     break;
                 }
             }
@@ -715,12 +772,12 @@ public class RipeQueryUI {
 
                 masterCounter++;
 
-                lblQueryResultValue.setText("IP: " + (masterCounter - 1));
+                lblQueryResultValue.setText(IP + (masterCounter - 1));
             }
 
             btnIniziaAnalisi.setEnabled(true);
             pbWorking.setVisible(false);
-            lblStatusBar.setText("Finished. Fetched " + masterPublishCounter + " IP");
+            lblStatusBar.setText(FINISHED_FETCHED + masterPublishCounter + IP1);
 
         }
 

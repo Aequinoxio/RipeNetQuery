@@ -2,6 +2,8 @@
  * Copyright (c) 2020. This code follow the GPL v3 license scheme.
  ******************************************************************************/
 
+import org.jetbrains.annotations.NonNls;
+
 import javax.json.*;
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
@@ -9,8 +11,20 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.ResourceBundle;
 
 public class RipeQuery {
+    @NonNls
+    private static final String MY_BUNDLE = "strings";
+    private static final ResourceBundle StringBundle = ResourceBundle.getBundle(MY_BUNDLE, Locale.getDefault());
+
+    private static final String ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP = StringBundle.getString("errore.recuperando.le.risorse.specifiche.per.l.ip");
+    private static final String ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION = StringBundle.getString("errore.nel.recuperare.l.oggetto.location");
+    private static final String ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP = StringBundle.getString("errore.nel.recuperare.le.locations.per.l.ip");
+    private static final String ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.la.prima.located.resources.per.l.ip");
+    private static final String ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.l.array.delle.located.resources.per.l.ip");
+    private static final String ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP = StringBundle.getString("errore.nel.recuperare.i.dati.per.l.ip");
     //private ArrayList<String> IPToBeChecked = new ArrayList<>();
     private final String RipeUrl = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
     String m_jsonData;
@@ -58,11 +72,12 @@ public class RipeQuery {
         // Controllo tutti i rami per capire se esistono (ad es. 231.4.5.6 ha l'array delle locations vuoto)
         // TODO: per robustezza verificare come passare il fatto che ci può essere un errore nel parsing del json (eccezione?)
         JsonObject data = joMain.getJsonObject("data");
-        String IPResource;
+        //String IPResource;
+
         if (data!=null) {
             JsonArray locatedResources = data.getJsonArray("located_resources");
-            if (locatedResources!=null && locatedResources.size()>0) {
 
+            if (locatedResources!=null && locatedResources.size()>0) {
                 // Sembra che located resources nelle query per IP ritorni sempre un array con un solo elemento
                 // N.B. nelle query per AS ritorna un array con più elementi - Tenerne conto in caso di estenda la classe per altri tipi di query
                 JsonObject firstLocatedResource = locatedResources.getJsonObject(0);
@@ -74,12 +89,11 @@ public class RipeQuery {
                     if (locations != null && locations.size() > 0) {
                         // Ciclo sull'array delle locations
                         for (int i=0;i< locations.size();i++) {
-
                             JsonObject locationObject = locations.getJsonObject(i);
 
                             if (locationObject != null) {
-                                try {
 
+                                try {
                                     // Estraggo tutte le eventuali resources  associate all'ip interrogato
                                     // e le aggiungo all'array che rappresenta la risposta: un oggetto per
                                     // ciascuna resource
@@ -114,14 +128,26 @@ public class RipeQuery {
                                         }
                                     }
                                 } catch (NullPointerException | ClassCastException e){
-                                    e.printStackTrace();
+                                    downloadUpdateCallback.update(ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP +IpValue+ " ("+e.toString()+ ")");
+                                    //e.printStackTrace();
                                 }
 
+                            } else {
+                                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION +i);
                             }
                         }
+
+                    } else {
+                        downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP +IpValue);
                     }
+                } else {
+                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP +IpValue);
                 }
+            } else {
+                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP +IpValue);
             }
+        } else {
+            downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP +IpValue);
         }
 
         return respReturnCode;
