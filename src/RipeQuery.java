@@ -15,51 +15,64 @@ import java.util.Locale;
 import java.util.ResourceBundle;
 
 public class RipeQuery {
+    // Bundle
     @NonNls
     private static final String MY_BUNDLE = "strings";
     private static final ResourceBundle StringBundle = ResourceBundle.getBundle(MY_BUNDLE, Locale.getDefault());
 
+    // Message strings
     private static final String ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP = StringBundle.getString("errore.recuperando.le.risorse.specifiche.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION = StringBundle.getString("errore.nel.recuperare.l.oggetto.location");
     private static final String ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP = StringBundle.getString("errore.nel.recuperare.le.locations.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.la.prima.located.resources.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.l.array.delle.located.resources.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP = StringBundle.getString("errore.nel.recuperare.i.dati.per.l.ip");
-    //private ArrayList<String> IPToBeChecked = new ArrayList<>();
-    private final String RipeUrl = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
-    String m_jsonData;
+
+    // Proxy variables
+    private static final String USER_AGENT = "User-Agent";
+    private static final String USER_AGENT_VALUE = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0";
+    private static final String HTTPS_STATS_RIPE_NET = "https://stats.ripe.net";
     Proxy proxy = Proxy.NO_PROXY;
 
-    private LocationData locationData; // = new LocationData();
+    // Query variables
+    private final String RipeUrl = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
+
+    // Raw data fetched
+    String m_jsonData;
+
+    // Data parsed
+    private LocationData locationData;
     private final ArrayList<LocationData> locationDataArrayList = new ArrayList<>();
 
+    // Call back for update
     private final DownloadUpdateCallback downloadUpdateCallback;
+
     /**
      * Costruttore
-     * Imposta il proxy di sistema
+     * Imposta il proxy di sistema e la callback
      */
     public RipeQuery(DownloadUpdateCallback downloadUpdateCallback) {
         // Imposto il proxy
         getProxy();
-        this.downloadUpdateCallback=downloadUpdateCallback;
+        this.downloadUpdateCallback = downloadUpdateCallback;
     }
-
 
     /**
      * Contatta stats.ripe.net ed analizza lo stream estraendo i dati della prima location
      * Se tutto va bene esegue il parsing dello stream ed imposta l'oggetto interno delal classe LocationData
      * Se ci sono stati problemi di connessione o di parsing lancia l'eccezione relativa
+     *
      * @return Codice di stato della chiamata al sito
      */
     public HttpStatusCodes downloadAndParseLocationData(String IpValue) throws IOException, ClassCastException {
         //String retVal="Unknown";
-       // boolean status=false;
-        HttpStatusCodes respReturnCode=HttpStatusCodes.UNKNOWN_CODE;
+        // boolean status=false;
+        HttpStatusCodes respReturnCode = HttpStatusCodes.UNKNOWN_CODE;
 
         respReturnCode = queryIPAddressForCountry(IpValue);
 
         // Se non ho ottenuto nulla ritorno il codice di errore e basta, altrimenti faccio il parsing dello stream
-        if (m_jsonData==null || m_jsonData.isEmpty()){
+        if (m_jsonData == null || m_jsonData.isEmpty()) {
             return respReturnCode;
         }
 
@@ -70,25 +83,24 @@ public class RipeQuery {
         jsonReader.close();
 
         // Controllo tutti i rami per capire se esistono (ad es. 231.4.5.6 ha l'array delle locations vuoto)
-        // TODO: per robustezza verificare come passare il fatto che ci può essere un errore nel parsing del json (eccezione?)
         JsonObject data = joMain.getJsonObject("data");
         //String IPResource;
 
-        if (data!=null) {
+        if (data != null) {
             JsonArray locatedResources = data.getJsonArray("located_resources");
 
-            if (locatedResources!=null && locatedResources.size()>0) {
+            if (locatedResources != null && locatedResources.size() > 0) {
                 // Sembra che located resources nelle query per IP ritorni sempre un array con un solo elemento
                 // N.B. nelle query per AS ritorna un array con più elementi - Tenerne conto in caso di estenda la classe per altri tipi di query
                 JsonObject firstLocatedResource = locatedResources.getJsonObject(0);
-                if (firstLocatedResource!=null) {
+                if (firstLocatedResource != null) {
                     //IPResource = firstLocatedResource.getString("resource");
                     //locationData.IP= IPResource;
                     JsonArray locations = firstLocatedResource.getJsonArray("locations");
 
                     if (locations != null && locations.size() > 0) {
                         // Ciclo sull'array delle locations
-                        for (int i=0;i< locations.size();i++) {
+                        for (int i = 0; i < locations.size(); i++) {
                             JsonObject locationObject = locations.getJsonObject(i);
 
                             if (locationObject != null) {
@@ -101,59 +113,71 @@ public class RipeQuery {
 
                                     // Devo fare un ciclo esplicito e non un for(JsonValue resourceValue : resourcesArray)
                                     // perché altrimenti il valore dell'array comprende le virgolettte
-                                    for (int j = 0 ;j< resourcesArray.size();j++){
+                                    for (int j = 0; j < resourcesArray.size(); j++) {
                                         //String resourceString = resourcesArray.getString(j);
 
                                         locationData = new LocationData();
 
                                         locationData.IPQueried = IpValue;
-                                        locationData.resource= resourcesArray.getString(j);
+                                        locationData.resource = resourcesArray.getString(j);
                                         locationData.country = locationObject.getString("country");
                                         locationData.city = locationObject.getString("city");
                                         locationData.latitude = locationObject.getJsonNumber("latitude").doubleValue();
                                         locationData.longitude = locationObject.getJsonNumber("longitude").doubleValue();
                                         locationData.covered_percentage = locationObject.getJsonNumber("covered_percentage").doubleValue();
 
-                                        locationData.search_time=joMain.getString("time");
+                                        locationData.search_time = joMain.getString("time");
 
-                                        locationData.query_time=data.getJsonObject("parameters").getString("query_time");
-                                        locationData.latest_time=data.getString("latest_time");
-                                        locationData.earliest_time=data.getString("earliest_time");
-                                        locationData.result_time=data.getString("result_time");
+                                        locationData.query_time = data.getJsonObject("parameters").getString("query_time");
+                                        locationData.latest_time = data.getString("latest_time");
+                                        locationData.earliest_time = data.getString("earliest_time");
+                                        locationData.result_time = data.getString("result_time");
 
                                         locationDataArrayList.add(locationData);
 
-                                        if (downloadUpdateCallback!=null){
-                                            downloadUpdateCallback.update(IpValue+ " - "+ locationData.resource);
+                                        if (downloadUpdateCallback != null) {
+                                            downloadUpdateCallback.update(IpValue + " - " + locationData.resource);
                                         }
                                     }
-                                } catch (NullPointerException | ClassCastException e){
-                                    downloadUpdateCallback.update(ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP +IpValue+ " ("+e.toString()+ ")");
+                                } catch (NullPointerException | ClassCastException e) {
+                                    if (downloadUpdateCallback != null) {
+                                        downloadUpdateCallback.update(ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP + IpValue + " (" + e.toString() + ")");
+                                    }
                                     //e.printStackTrace();
                                 }
 
                             } else {
-                                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION +i);
+                                if (downloadUpdateCallback != null) {
+                                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION + i);
+                                }
                             }
                         }
 
                     } else {
-                        downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP +IpValue);
+                        if (downloadUpdateCallback != null) {
+                            downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP + IpValue);
+                        }
                     }
                 } else {
-                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP +IpValue);
+                    if (downloadUpdateCallback != null) {
+                        downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP + IpValue);
+                    }
                 }
             } else {
-                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP +IpValue);
+                if (downloadUpdateCallback != null) {
+                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP + IpValue);
+                }
             }
         } else {
-            downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP +IpValue);
+            if (downloadUpdateCallback!=null) {
+                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP + IpValue);
+            }
         }
 
         return respReturnCode;
     }
 
-    public ArrayList<LocationData> getAllLocationsData(){
+    public ArrayList<LocationData> getAllLocationsData() {
         // Deep copy
         ArrayList<LocationData> temp = new ArrayList<>();
         try {
@@ -167,26 +191,28 @@ public class RipeQuery {
         return temp;
     }
 
-    public String getLatestResource(){
+    public String getLatestResource() {
         return locationData.resource;
     }
-    public String getLatestCountry(){
+
+    public String getLatestCountry() {
         return locationData.country;
     }
 
-    public String getLatestCity(){
+    public String getLatestCity() {
         return locationData.city;
     }
 
-    public double getLatestLatitude(){
+    public double getLatestLatitude() {
         return locationData.latitude;
 
     }
-    public double getLatestLongitude(){
+
+    public double getLatestLongitude() {
         return locationData.longitude;
     }
 
-    public double getLatestCoveredPercentage(){
+    public double getLatestCoveredPercentage() {
         return locationData.covered_percentage;
     }
 
@@ -194,25 +220,26 @@ public class RipeQuery {
 
     /**
      * Interroga stats.ripe.net per IP allo scopo di ottenere la country relativa
+     *
      * @param IpValue Indirizzo IP di cui conoscere la country. Modifica lo stato interno della classe con il json ritornato.
      * @return Stato della query
      */
     private HttpStatusCodes queryIPAddressForCountry(String IpValue) throws IOException {
-        HttpStatusCodes respReturnCode=HttpStatusCodes.UNKNOWN_CODE;
+        HttpStatusCodes respReturnCode = HttpStatusCodes.UNKNOWN_CODE;
 
-        HttpsURLConnection urlConnection ;
+        HttpsURLConnection urlConnection;
         URL url = new URL(RipeUrl + IpValue);
         urlConnection = (HttpsURLConnection) url.openConnection(proxy);
 
         // Indispensabile altrimenti si ottiene un errore 403
-        urlConnection.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0");
+        urlConnection.addRequestProperty(USER_AGENT, USER_AGENT_VALUE);
 
         int respCode = urlConnection.getResponseCode();
         respReturnCode = HttpStatusCodes.intToHttpStatusCode(respCode);
-        if (respCode==200){
+        if (respCode == 200) {
             m_jsonData = getData(urlConnection);
         } else {
-            m_jsonData=null;
+            m_jsonData = null;
         }
         return respReturnCode;
     }
@@ -242,25 +269,24 @@ public class RipeQuery {
         return sb.toString();
     }
 
-    private void getProxy(){
+    private void getProxy() {
         System.setProperty("java.net.useSystemProxies", "true");
         List<Proxy> l = null;
         try {
-            l = ProxySelector.getDefault().select(new URI("https://stats.ripe.net"));
-        }
-        catch (URISyntaxException e) {
+            l = ProxySelector.getDefault().select(new URI(HTTPS_STATS_RIPE_NET));
+        } catch (URISyntaxException e) {
             e.printStackTrace();
         }
 
         // Prendo il primo proxy disponibile tra quelli definiti a sistema
-        if (l!=null) {
+        if (l != null) {
             proxy = l.get(0);
         } else {
             proxy = Proxy.NO_PROXY;
         }
     }
 
-    static class LocationData implements Cloneable{
+    static class LocationData implements Cloneable {
         String IPQueried;
         String search_time;
         String resource;
