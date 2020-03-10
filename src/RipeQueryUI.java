@@ -26,7 +26,7 @@ import java.util.prefs.Preferences;
 
 public class RipeQueryUI {
     @NonNls
-    private static final String VERSIONE = "Versione 1.2 (stabile)"+System.lineSeparator()+"By Gabriele Galluzzo";
+    private static final String VERSIONE = "Versione 1.3 (stabile)"+System.lineSeparator()+"By Gabriele Galluzzo";
 
     @NonNls
     private static final String MY_BUNDLE = "strings";
@@ -58,7 +58,7 @@ public class RipeQueryUI {
     private static final String SALVATO_CON_SUCCESSO = StringBundle.getString("n.salvato.con.successo");
     private static final String ERRORE_NEL_SALVARE_IL_FILE = StringBundle.getString("errore.nel.salvare.il.file.n");
     private static final String REGEXP_SPLIT_LINES = "\\r?\\n";
-
+    private static final String COPIA_LE_RIGHE_SELEZIONATE = StringBundle.getString("copia.le.righe.selezionate");
 
     private JButton btnOpenFile;
     private JTextArea txtResults;
@@ -177,6 +177,7 @@ public class RipeQueryUI {
             public void actionPerformed(ActionEvent e) {
                 btnIniziaAnalisi.setEnabled(false);
                 pbWorking.setVisible(true);
+                pbWorking.setMaximum(IPToBeChecked.size());
                 lblStatusBar.setText(STATUS_WORKING);
                 txtResults.setText("");
                 tblResultModel.setRowCount(0);
@@ -284,17 +285,32 @@ public class RipeQueryUI {
 
         ////////////
         // Aggiungo un popup menu anche nella tabella dei risultati
-        // Creo il popup menu per l'incolla IP nella jtextarea specifica
+        // Creo il popup menu per copiare gli IP dalla tabella specifica
         JPopupMenu resultsTablePopupMenu = new JPopupMenu(COPIA_DATI);
         JMenuItem resultsTableMenuItem = new JMenuItem(COPIA_DATI);
         resultsTableMenuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                copiaTabellaSuClipboard();
+                copiaTabellaSuClipboard(false);
             }
         });
 
         resultsTablePopupMenu.add(resultsTableMenuItem);
+
+        ////////////
+        // Aggiungo un popup menu anche nella tabella dei risultati
+        // Creo il popup menu per la copia delle righe selezionate
+        //JPopupMenu resultsTableSelectedRowsPopupMenu = new JPopupMenu(COPIA_DATI);
+        JMenuItem resultsTableSelectedRowsPopupMenu = new JMenuItem(COPIA_LE_RIGHE_SELEZIONATE);
+        resultsTableSelectedRowsPopupMenu.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //copiaRigheSelezionateSuClipboard();
+                copiaTabellaSuClipboard(true);
+            }
+        });
+
+        resultsTablePopupMenu.add(resultsTableSelectedRowsPopupMenu);
 
         // Aggiungo il mouse listener al componente giusto
         tblResults.addMouseListener(new MouseListener() {
@@ -352,13 +368,14 @@ public class RipeQueryUI {
                 btnCancellaTutto.setEnabled(false);
                 lblQueryResultValue.setText("");
                 lblStatusBar.setText(" ");
+                lblQueryResultValue.setText("");
             }
         });
 
         btnCopyToclipboard.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                copiaTabellaSuClipboard();
+                copiaTabellaSuClipboard(false);
             }
         });
 
@@ -388,20 +405,42 @@ public class RipeQueryUI {
                     }
                     if (saveFile(saveFileChoosen)) {
                         JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        lblStatusBar.setText(SALVATO_CON_SUCCESSO);
                     } else {
                         JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
                     }
                 }
             }
         });
     }
 
-    private void copiaTabellaSuClipboard() {
-        StringSelection stringSelection = new StringSelection(tableToString());
+
+    private void copiaTabellaSuClipboard(boolean copySelected) {
+        StringSelection stringSelection = new StringSelection(tableToString(copySelected));
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(stringSelection, null);
-        JOptionPane.showMessageDialog(mainPanel, DLG_DATICOPIATI, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+        //JOptionPane.showMessageDialog(mainPanel, DLG_DATICOPIATI, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+        lblStatusBar.setText(DLG_DATICOPIATI);
     }
+
+//    private void copiaRigheSelezionateSuClipboardq(){
+//        int[] righeSelezionate = tblResults.getSelectedRows();
+//
+//        int rowIndex=0;
+//        StringBuilder sb = new StringBuilder();
+//        for (int i=0;i<righeSelezionate.length;i++){
+//            rowIndex=righeSelezionate[i];
+//            for (int j=0;j<tblResults.getColumnCount();j++) {
+//                sb.append(tblResultModel.getValueAt(rowIndex, j)).append("\t");
+//            }
+//        }
+//        StringSelection stringSelection = new StringSelection(tableToString());
+//        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+//        clipboard.setContents(stringSelection, null);
+//        JOptionPane.showMessageDialog(mainPanel, DLG_DATICOPIATI, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+//
+//    }
 
     private void copiaLogSuClipboard() {
         if (txtResults.getText().isEmpty()) {
@@ -415,9 +454,18 @@ public class RipeQueryUI {
     }
 
 
-    private String tableToString() {
+    private String tableToString(boolean copySelected) {
         StringBuilder stringBuilder = new StringBuilder();
         int maxColumns = tblResults.getColumnCount();
+        int maxRows;
+        int[] rowsToBeCopied;
+        if (copySelected){
+            rowsToBeCopied = tblResults.getSelectedRows();
+            maxRows = rowsToBeCopied.length;
+        } else {
+            rowsToBeCopied = new int [tblResults.getRowCount()];
+            maxRows = tblResults.getRowCount();
+        }
         // Costruisco la riga con le intestazioni
         for (int i = 0; i < maxColumns - 1; i++) {
             stringBuilder.append(tblResults.getColumnName(i)).append("\t");
@@ -425,9 +473,15 @@ public class RipeQueryUI {
 
         stringBuilder.append(tblResults.getColumnName(maxColumns - 1)).append(System.lineSeparator());
 
-        for (int i = 0; i < tblResultModel.getRowCount(); i++) {
+        int rowCounter=0;
+        for (int i = 0; i < maxRows; i++) {
             for (int j = 0; j < maxColumns - 1; j++) {
-                stringBuilder.append(tblResultModel.getValueAt(i, j)).append("\t");
+                if (copySelected){
+                    rowCounter=rowsToBeCopied[i];
+                } else {
+                    rowCounter=i;
+                }
+                stringBuilder.append(tblResultModel.getValueAt(rowCounter, j)).append("\t");
             }
             stringBuilder.append(tblResultModel.getValueAt(i, maxColumns - 1)).append(System.lineSeparator());
         }
@@ -438,7 +492,7 @@ public class RipeQueryUI {
     private boolean saveFile(File fileToBeSaved) {
         boolean result = false;
         try (BufferedWriter bfw = new BufferedWriter(new FileWriter(fileToBeSaved))) {
-            String tableData = tableToString();
+            String tableData = tableToString(false);
             bfw.write(tableData);
             result = true;
         } catch (IOException e) {
@@ -629,6 +683,9 @@ public class RipeQueryUI {
         @Override
         protected void done() {
             super.done();
+
+            masterCounter=1; // Resetto il contatore per mostrare i numeri di riga nella tabella
+
             // Al temine del ciclo di recupero dati, mostro quelli che ho recuperato
             ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
             for (RipeQuery.LocationData locationData : locationDataArrayList) {
@@ -678,6 +735,8 @@ public class RipeQueryUI {
         @Override
         public void update(String message) {
             publish(message);
+            lblQueryResultValue.setText(IP + (masterPublishCounter - 1)+ " di "+IPToBeChecked.size());
+            pbWorking.setValue(masterPublishCounter);
             masterPublishCounter++;
         }
     }

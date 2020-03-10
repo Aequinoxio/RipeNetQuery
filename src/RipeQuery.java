@@ -27,6 +27,7 @@ public class RipeQuery {
     private static final String ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.la.prima.located.resources.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.l.array.delle.located.resources.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP = StringBundle.getString("errore.nel.recuperare.i.dati.per.l.ip");
+    private static final String CHECKING = StringBundle.getString("checking");
 
     // Proxy variables
     private static final String USER_AGENT = "User-Agent";
@@ -136,7 +137,7 @@ public class RipeQuery {
                                         locationDataArrayList.add(locationData);
 
                                         if (downloadUpdateCallback != null) {
-                                            downloadUpdateCallback.update(IpValue + " - " + locationData.resource);
+                                            downloadUpdateCallback.update(CHECKING +IpValue + " - " + locationData.resource);
                                         }
                                     }
                                 } catch (NullPointerException | ClassCastException e) {
