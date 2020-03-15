@@ -26,14 +26,14 @@ import java.util.prefs.Preferences;
 
 public class RipeQueryUI {
     @NonNls
-    private static final String VERSIONE = "Versione 1.3 (stabile)"+System.lineSeparator()+"By Gabriele Galluzzo";
+    private static final String VERSIONE = "Versione 1.4 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
 
     @NonNls
     private static final String MY_BUNDLE = "strings";
     private static final ResourceBundle StringBundle = ResourceBundle.getBundle(MY_BUNDLE, Locale.getDefault());
 
-    private static final String INFORMAZIONE_TITLE_DIALOG =StringBundle.getString("informazione") ;
-    private static final String DLG_DATICOPIATI =StringBundle.getString("dati.copiati") ;
+    private static final String INFORMAZIONE_TITLE_DIALOG = StringBundle.getString("informazione");
+    private static final String DLG_DATICOPIATI = StringBundle.getString("dati.copiati");
     private static final String DLG_ERRORE = StringBundle.getString("errore");
     private static final String DLG_FILE_IP_DUPLICATES = StringBundle.getString("il.file.non.contiene.ip.validi.o.sono.gia.presenti.nella.lista");
     private static final String DLG_FILE_IP_ERROR = StringBundle.getString("il.file.non.contiene.ip.validi");
@@ -57,8 +57,12 @@ public class RipeQueryUI {
     private static final String FILE = StringBundle.getString("file.n");
     private static final String SALVATO_CON_SUCCESSO = StringBundle.getString("n.salvato.con.successo");
     private static final String ERRORE_NEL_SALVARE_IL_FILE = StringBundle.getString("errore.nel.salvare.il.file.n");
+    private static final String ERRORE_NEL_CARICARE_IL_FILE = StringBundle.getString("errore.nel.caricare.il.file.");
     private static final String REGEXP_SPLIT_LINES = "\\r?\\n";
     private static final String COPIA_LE_RIGHE_SELEZIONATE = StringBundle.getString("copia.le.righe.selezionate");
+    private static final String DATA_LOADED_FROM_FILE = StringBundle.getString("data.loaded.from.file");
+
+    int m_masterCounter = 1; // Contatore per gli IP in tabella
 
     private JButton btnOpenFile;
     private JTextArea txtResults;
@@ -76,7 +80,9 @@ public class RipeQueryUI {
     private JProgressBar pbWorking;
     private DefaultTableModel tblResultModel;
     private JLabel lblQueryResult;
+    private JButton btnCaricaDatiDaFileButton;
 
+    private static CoordinatesToMap coordinatesToGoogleMaps;
 
     // Provo a riaprire il file chooser dall'ultima posizione salvata
     @NonNls
@@ -143,7 +149,7 @@ public class RipeQueryUI {
                         lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size() +
                                 IP_DUPLICATI + skippedIP);
 
-                        txtResults.append(CARICATI + (IPToBeChecked.size() - startingIPNumbers) + IP_DAL_FILE +IPFilename+" "+System.lineSeparator());
+                        txtResults.append(CARICATI + (IPToBeChecked.size() - startingIPNumbers) + IP_DAL_FILE + IPFilename + " " + System.lineSeparator());
 
                         // Se ne trovo almeno uno attivo il bottone della ricerca
                         if (IPToBeChecked.size() > 0) {
@@ -184,6 +190,7 @@ public class RipeQueryUI {
 
                 DownloadWorker downloadWorker = new DownloadWorker();
                 downloadWorker.execute();
+
             }
         });
 
@@ -314,9 +321,42 @@ public class RipeQueryUI {
 
         // Aggiungo il mouse listener al componente giusto
         tblResults.addMouseListener(new MouseListener() {
+            /**
+             * Apro una finestra con una mappa centrata sulle coordinate
+             * @param e Evento del mouse
+             */
             @Override
             public void mouseClicked(MouseEvent e) {
+                // TODO: Testare quando il servizio maxmindlite di ripe.net tornerà on line
+                // Testare in alternativa con un file json caricato a mano nella tabella
+                if (e.getClickCount() == 2) {
+                    JTable target = (JTable) e.getSource();
+                    int row = target.getSelectedRow();
+                    int columnLatitudeIndex = target.getColumn(LATITUDE).getModelIndex();
+                    int columnLongitudeIndex = target.getColumn(LONGITUDE).getModelIndex();
+                    double latitude = (double) target.getModel().getValueAt(row, columnLatitudeIndex);
+                    double longitude = (double) target.getModel().getValueAt(row, columnLongitudeIndex);
 
+                    // Codice originario che non ricarica la webview
+                    CoordinatesToMap coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
+                    coordinatesToGoogleMaps.setVisible(true);
+
+//                    if (coordinatesToGoogleMaps == null) {
+//                        coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
+//                        coordinatesToGoogleMaps.setVisible(true);
+//                    } else {
+//                        coordinatesToGoogleMaps.setVisible(true);
+//                        coordinatesToGoogleMaps.loadAndDisplayMap(latitude, longitude);
+//                    }
+                    //coordinatesToGoogleMaps.loadAndDisplayMap();
+//                    StringBuffer sb = new StringBuffer();
+//                    String lineSeparator = System.getProperty("line.separator");
+//                    sb.append(tblResults[row][0] + lineSeparator);
+//                    sb.append(tabledata[row][1] + lineSeparator);
+//                    sb.append(tabledata[row][2] + lineSeparator);
+//                    TextFrame textFrame = new TextFrame(sb.toString());
+//                    textFrame.setVisible(true);
+                }
             }
 
             @Override
@@ -413,8 +453,113 @@ public class RipeQueryUI {
                 }
             }
         });
+
+        btnCaricaDatiDaFileButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                jFileChooser.setMultiSelectionEnabled(false);
+
+
+                int retVal = jFileChooser.showOpenDialog(mainPanel);
+                if (retVal == JFileChooser.APPROVE_OPTION) {
+                    File selectedFile = jFileChooser.getSelectedFile();
+                    RipeQuery ripeQuery = new RipeQuery(null);
+
+                    if (!ripeQuery.parseFromFile(DATA_LOADED_FROM_FILE, selectedFile)) {
+                        JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_CARICARE_IL_FILE + selectedFile.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
+                        return;
+                    }
+
+                    updateTable(ripeQuery);
+//                    ////////////////////
+//                    // CODICE DUPLICATO DELLA SEZIONE CHE AGGIORNA LA TABELLA NEL METODO done DI DownloadWorker
+//                    ////////////////////
+//                    // Al temine del ciclo di recupero dati, mostro quelli che ho recuperato
+//                    int masterCounter = 1; // Contatore per mostrare i numeri di riga nella tabella
+//                    ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
+//                    for (RipeQuery.LocationData locationData : locationDataArrayList) {
+//                        txtResults.append(
+//                                masterCounter +
+//                                        " - " + locationData.IPQueried +
+//                                        " - " + locationData.search_time +
+//                                        " - " + locationData.resource +
+//                                        " - " + locationData.country +
+//                                        " - " + locationData.city +
+//                                        " - " + locationData.latitude +
+//                                        " - " + locationData.longitude +
+//                                        " - " + locationData.covered_percentage +
+//                                        " - " + locationData.query_time +
+//                                        " - " + locationData.latest_time +
+//                                        " - " + locationData.result_time +
+//                                        " - " + locationData.earliest_time +
+//                                        System.lineSeparator());
+//
+//                        tblResultModel.addRow(new Object[]{
+//                                masterCounter,
+//                                locationData.IPQueried,
+//                                locationData.search_time,
+//                                locationData.resource,
+//                                locationData.country,
+//                                locationData.city,
+//                                locationData.latitude,
+//                                locationData.longitude,
+//                                locationData.covered_percentage,
+//                                locationData.query_time,
+//                                locationData.latest_time,
+//                                locationData.result_time,
+//                                locationData.earliest_time});
+//
+//                        masterCounter++;
+//                    }
+//                    String IP = StringBundle.getString("ip");
+//                    lblQueryResultValue.setText(IP + (masterCounter - 1));
+                }
+            }
+        });
     }
 
+    private void updateTable(RipeQuery ripeQuery) {
+
+        ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
+        for (RipeQuery.LocationData locationData : locationDataArrayList) {
+            txtResults.append(
+                    m_masterCounter +
+                            " - " + locationData.IPQueried +
+                            " - " + locationData.search_time +
+                            " - " + locationData.resource +
+                            " - " + locationData.country +
+                            " - " + locationData.city +
+                            " - " + locationData.latitude +
+                            " - " + locationData.longitude +
+                            " - " + locationData.covered_percentage +
+                            " - " + locationData.query_time +
+                            " - " + locationData.latest_time +
+                            " - " + locationData.result_time +
+                            " - " + locationData.earliest_time +
+                            System.lineSeparator());
+
+            tblResultModel.addRow(new Object[]{
+                    m_masterCounter,
+                    locationData.IPQueried,
+                    locationData.search_time,
+                    locationData.resource,
+                    locationData.country,
+                    locationData.city,
+                    locationData.latitude,
+                    locationData.longitude,
+                    locationData.covered_percentage,
+                    locationData.query_time,
+                    locationData.latest_time,
+                    locationData.result_time,
+                    locationData.earliest_time});
+
+            m_masterCounter++;
+        }
+
+        String IP = StringBundle.getString("ip");
+        lblQueryResultValue.setText(IP + (m_masterCounter - 1));
+    }
 
     private void copiaTabellaSuClipboard(boolean copySelected) {
         StringSelection stringSelection = new StringSelection(tableToString(copySelected));
@@ -459,11 +604,11 @@ public class RipeQueryUI {
         int maxColumns = tblResults.getColumnCount();
         int maxRows;
         int[] rowsToBeCopied;
-        if (copySelected){
+        if (copySelected) {
             rowsToBeCopied = tblResults.getSelectedRows();
             maxRows = rowsToBeCopied.length;
         } else {
-            rowsToBeCopied = new int [tblResults.getRowCount()];
+            rowsToBeCopied = new int[tblResults.getRowCount()];
             maxRows = tblResults.getRowCount();
         }
         // Costruisco la riga con le intestazioni
@@ -473,13 +618,13 @@ public class RipeQueryUI {
 
         stringBuilder.append(tblResults.getColumnName(maxColumns - 1)).append(System.lineSeparator());
 
-        int rowCounter=0;
+        int rowCounter = 0;
         for (int i = 0; i < maxRows; i++) {
             for (int j = 0; j < maxColumns - 1; j++) {
-                if (copySelected){
-                    rowCounter=rowsToBeCopied[i];
+                if (copySelected) {
+                    rowCounter = rowsToBeCopied[i];
                 } else {
-                    rowCounter=i;
+                    rowCounter = i;
                 }
                 stringBuilder.append(tblResultModel.getValueAt(rowCounter, j)).append("\t");
             }
@@ -536,7 +681,9 @@ public class RipeQueryUI {
         jMenuItemAbout.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JOptionPane.showMessageDialog(frame, VERSIONE,INFORMAZIONE_TITLE_DIALOG,JOptionPane.INFORMATION_MESSAGE);
+                //JOptionPane.showMessageDialog(frame, VERSIONE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                DlgAbout dlgAbout = new DlgAbout(frame,true);
+                dlgAbout.setVisible(true);
             }
         });
         jMenuQuestion.add(jMenuItemAbout);
@@ -546,6 +693,10 @@ public class RipeQueryUI {
         frame.setContentPane(new RipeQueryUI().mainPanel);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
+
+        // Visualizzo al centro dello schermo
+        frame.setLocationRelativeTo(null);
+
         frame.setVisible(true);
     }
 
@@ -636,20 +787,19 @@ public class RipeQueryUI {
         private final String FINISHED_FETCHED = StringBundle.getString("finished.fetched");
         private final String IP1 = StringBundle.getString("ip1");
 
-        int masterCounter = 1; // Contatore per gli IP in tabella
         int masterPublishCounter = 0;   // Contatore per gli IP trattati e pubblicati. Potrebbero essere lo stesso valore ma il primo è
-                                        // aggiornato in fase di update della tabella, l'altro per ogni IP recuperato dalla classe RipeQuery
+        // aggiornato in fase di update della tabella, l'altro per ogni IP recuperato dalla classe RipeQuery
 
         final RipeQuery ripeQuery = new RipeQuery(this);
 
         @Override
         protected ArrayList<RipeQuery.LocationData> doInBackground() {
 
-            masterCounter = 1;
+            m_masterCounter = 1;
 
             // Recupero tutti i dati di interesse per ogni ip della lista
             for (String ip : IPToBeChecked) {
-                HttpStatusCodes retval ;
+                HttpStatusCodes retval;
                 try {
                     retval = ripeQuery.downloadAndParseLocationData(ip);
 
@@ -657,7 +807,8 @@ public class RipeQueryUI {
                     if (retval != HttpStatusCodes.OK) {
 
                         publish(ip + ERROR +
-                                retval + " " + retval.getCode() + " " + retval.getCodeAsText() + " " + retval.getDesc());
+                                retval + " " + retval.getCode() + " " +
+                                retval.getCodeAsText() + " " + retval.getDesc());
 
                         // In caso di errore metto nei log un messaggio di errore e proseguo con gli altri IP
                         continue;
@@ -684,47 +835,49 @@ public class RipeQueryUI {
         protected void done() {
             super.done();
 
-            masterCounter=1; // Resetto il contatore per mostrare i numeri di riga nella tabella
+            m_masterCounter = 1; // Resetto il contatore per mostrare i numeri di riga nella tabella
 
-            // Al temine del ciclo di recupero dati, mostro quelli che ho recuperato
-            ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
-            for (RipeQuery.LocationData locationData : locationDataArrayList) {
-                txtResults.append(
-                        masterCounter +
-                                " - " + locationData.IPQueried +
-                                " - " + locationData.search_time +
-                                " - " + locationData.resource +
-                                " - " + locationData.country +
-                                " - " + locationData.city +
-                                " - " + locationData.latitude +
-                                " - " + locationData.longitude +
-                                " - " + locationData.covered_percentage +
-                                " - " + locationData.query_time +
-                                " - " + locationData.latest_time +
-                                " - " + locationData.result_time +
-                                " - " + locationData.earliest_time +
-                                System.lineSeparator());
+//            // Al temine del ciclo di recupero dati, mostro quelli che ho recuperato
+//            ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
+//            for (RipeQuery.LocationData locationData : locationDataArrayList) {
+//                txtResults.append(
+//                        masterCounter +
+//                                " - " + locationData.IPQueried +
+//                                " - " + locationData.search_time +
+//                                " - " + locationData.resource +
+//                                " - " + locationData.country +
+//                                " - " + locationData.city +
+//                                " - " + locationData.latitude +
+//                                " - " + locationData.longitude +
+//                                " - " + locationData.covered_percentage +
+//                                " - " + locationData.query_time +
+//                                " - " + locationData.latest_time +
+//                                " - " + locationData.result_time +
+//                                " - " + locationData.earliest_time +
+//                                System.lineSeparator());
+//
+//                tblResultModel.addRow(new Object[]{
+//                        masterCounter,
+//                        locationData.IPQueried,
+//                        locationData.search_time,
+//                        locationData.resource,
+//                        locationData.country,
+//                        locationData.city,
+//                        locationData.latitude,
+//                        locationData.longitude,
+//                        locationData.covered_percentage,
+//                        locationData.query_time,
+//                        locationData.latest_time,
+//                        locationData.result_time,
+//                        locationData.earliest_time
+//                });
+//
+//                masterCounter++;
+//
+//                lblQueryResultValue.setText(IP + (masterCounter - 1));
+//            }
 
-                tblResultModel.addRow(new Object[]{
-                        masterCounter,
-                        locationData.IPQueried,
-                        locationData.search_time,
-                        locationData.resource,
-                        locationData.country,
-                        locationData.city,
-                        locationData.latitude,
-                        locationData.longitude,
-                        locationData.covered_percentage,
-                        locationData.query_time,
-                        locationData.latest_time,
-                        locationData.result_time,
-                        locationData.earliest_time
-                });
-
-                masterCounter++;
-
-                lblQueryResultValue.setText(IP + (masterCounter - 1));
-            }
+            updateTable(ripeQuery);
 
             btnIniziaAnalisi.setEnabled(true);
             pbWorking.setVisible(false);
@@ -735,9 +888,9 @@ public class RipeQueryUI {
         @Override
         public void update(String message) {
             publish(message);
-            lblQueryResultValue.setText(IP + (masterPublishCounter - 1)+ " di "+IPToBeChecked.size());
-            pbWorking.setValue(masterPublishCounter);
             masterPublishCounter++;
+            lblQueryResultValue.setText(IP + (masterPublishCounter - 1) + " di " + IPToBeChecked.size());
+            pbWorking.setValue(masterPublishCounter);
         }
     }
 

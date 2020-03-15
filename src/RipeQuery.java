@@ -29,6 +29,8 @@ public class RipeQuery {
     private static final String ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP = StringBundle.getString("errore.nel.recuperare.i.dati.per.l.ip");
     private static final String CHECKING = StringBundle.getString("checking");
 
+    private static final String LOG_MESSAGE_SEPARATOR = "\n\t- ";
+
     // Proxy variables
     private static final String USER_AGENT = "User-Agent";
     private static final String USER_AGENT_VALUE = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0";
@@ -63,6 +65,7 @@ public class RipeQuery {
      * Se tutto va bene esegue il parsing dello stream ed imposta l'oggetto interno delal classe LocationData
      * Se ci sono stati problemi di connessione o di parsing lancia l'eccezione relativa
      *
+     * @param IpValue Ip di cui scaricare i dati
      * @return Codice di stato della chiamata al sito
      */
     public HttpStatusCodes downloadAndParseLocationData(String IpValue) throws IOException, ClassCastException {
@@ -72,11 +75,51 @@ public class RipeQuery {
 
         respReturnCode = queryIPAddressForCountry(IpValue);
 
+
+// TODO: Da sistemare
         // Se non ho ottenuto nulla ritorno il codice di errore e basta, altrimenti faccio il parsing dello stream
         if (m_jsonData == null || m_jsonData.isEmpty()) {
             return respReturnCode;
         }
 
+        parseStream(IpValue);
+
+        return respReturnCode;
+    }
+
+    /**
+     *
+     * @param IpValueTemp
+     * @param tempFile
+     * @return true se tutto è andato a buon fine, false in caso di errore nel caricamento del file o nel parsing
+     */
+    public boolean parseFromFile(String IpValueTemp, File tempFile) {
+
+        StringBuilder sb = new StringBuilder();
+        // File tempFile = new File("C:\\Users\\utente\\Downloads\\temp\\193_0_0_0_0_8_data.json");
+        try (BufferedReader bfr = new BufferedReader(new FileReader(tempFile))) {
+            String linea;
+            while ((linea = bfr.readLine()) != null) {
+                sb.append(linea);
+            }
+        } catch (IOException e) {
+            //e.printStackTrace();
+            return false;
+        }
+
+        m_jsonData = sb.toString();
+
+        return parseStream(IpValueTemp);
+    }
+
+    /**
+     * Parsing dello stream memorizzatoin m_jsonData
+     *
+     * @param IpValueTemp Ip a cui lo stream si riferisce
+     * @return true se tutto è andato bene, false altrimenti
+     */
+    private boolean parseStream(String IpValueTemp) {
+        boolean allOk = false;
         // Parsing dello stream
         StringReader sr = new StringReader(m_jsonData);
         JsonReader jsonReader = Json.createReader(sr);
@@ -92,90 +135,133 @@ public class RipeQuery {
 
             if (locatedResources != null && locatedResources.size() > 0) {
                 // Sembra che located resources nelle query per IP ritorni sempre un array con un solo elemento
-                // N.B. nelle query per AS ritorna un array con più elementi - Tenerne conto in caso di estenda la classe per altri tipi di query
-                JsonObject firstLocatedResource = locatedResources.getJsonObject(0);
-                if (firstLocatedResource != null) {
-                    //IPResource = firstLocatedResource.getString("resource");
-                    //locationData.IP= IPResource;
-                    JsonArray locations = firstLocatedResource.getJsonArray("locations");
+                // In ogni caso faccio il parsiong come se fosse un array
+                for (int k = 0; k < locatedResources.size(); k++) {
+                    JsonObject locateResourceObject = locatedResources.getJsonObject(k);
+                    if (locateResourceObject != null) {
 
-                    if (locations != null && locations.size() > 0) {
-                        // Ciclo sull'array delle locations
-                        for (int i = 0; i < locations.size(); i++) {
-                            JsonObject locationObject = locations.getJsonObject(i);
+                        JsonArray locations = locateResourceObject.getJsonArray("locations");
 
-                            if (locationObject != null) {
+                        if (locations != null && locations.size() > 0) {
+                            // Ciclo sull'array delle locations
+                            for (int i = 0; i < locations.size(); i++) {
+                                JsonObject locationObject = locations.getJsonObject(i);
 
-                                try {
-                                    // Estraggo tutte le eventuali resources  associate all'ip interrogato
-                                    // e le aggiungo all'array che rappresenta la risposta: un oggetto per
-                                    // ciascuna resource
-                                    JsonArray resourcesArray = locationObject.getJsonArray("resources");
+                                if (locationObject != null) {
 
-                                    // Devo fare un ciclo esplicito e non un for(JsonValue resourceValue : resourcesArray)
-                                    // perché altrimenti il valore dell'array comprende le virgolettte
-                                    for (int j = 0; j < resourcesArray.size(); j++) {
-                                        //String resourceString = resourcesArray.getString(j);
+                                    try {
+                                        // Estraggo tutte le eventuali resources  associate all'ip interrogato
+                                        // e le aggiungo all'array che rappresenta la risposta: un oggetto per
+                                        // ciascuna resource
+                                        JsonArray resourcesArray = locationObject.getJsonArray("resources");
 
-                                        locationData = new LocationData();
+                                        // Devo fare un ciclo esplicito e non un for(JsonValue resourceValue : resourcesArray)
+                                        // perché altrimenti il valore dell'array comprende le virgolettte
+                                        for (int j = 0; j < resourcesArray.size(); j++) {
+                                            //String resourceString = resourcesArray.getString(j);
 
-                                        locationData.IPQueried = IpValue;
-                                        locationData.resource = resourcesArray.getString(j);
-                                        locationData.country = locationObject.getString("country");
-                                        locationData.city = locationObject.getString("city");
-                                        locationData.latitude = locationObject.getJsonNumber("latitude").doubleValue();
-                                        locationData.longitude = locationObject.getJsonNumber("longitude").doubleValue();
-                                        locationData.covered_percentage = locationObject.getJsonNumber("covered_percentage").doubleValue();
+                                            locationData = new LocationData();
 
-                                        locationData.search_time = joMain.getString("time");
+                                            locationData.IPQueried = IpValueTemp;
+                                            locationData.resource = resourcesArray.getString(j);
+                                            locationData.country = locationObject.getString("country");
+                                            locationData.city = locationObject.getString("city");
+                                            locationData.latitude = locationObject.getJsonNumber("latitude").doubleValue();
+                                            locationData.longitude = locationObject.getJsonNumber("longitude").doubleValue();
+                                            locationData.covered_percentage = locationObject.getJsonNumber("covered_percentage").doubleValue();
 
-                                        locationData.query_time = data.getJsonObject("parameters").getString("query_time");
-                                        locationData.latest_time = data.getString("latest_time");
-                                        locationData.earliest_time = data.getString("earliest_time");
-                                        locationData.result_time = data.getString("result_time");
+                                            locationData.search_time = joMain.getString("time");
 
-                                        locationDataArrayList.add(locationData);
+                                            locationData.query_time = data.getJsonObject("parameters").getString("query_time");
+                                            locationData.latest_time = data.getString("latest_time");
+                                            locationData.earliest_time = data.getString("earliest_time");
+                                            locationData.result_time = data.getString("result_time");
 
-                                        if (downloadUpdateCallback != null) {
-                                            downloadUpdateCallback.update(CHECKING +IpValue + " - " + locationData.resource);
+                                            locationDataArrayList.add(locationData);
+
+                                            // Aggiorno il caller
+                                            if (downloadUpdateCallback != null) {
+                                                downloadUpdateCallback.update(CHECKING + IpValueTemp + " - " + locationData.resource);
+                                            }
+
+                                            allOk = true;
                                         }
+                                    } catch (NullPointerException | ClassCastException e) {
+                                        if (downloadUpdateCallback != null) {
+                                            downloadUpdateCallback.update(ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP + IpValueTemp + " (" + e.toString() + ")" +
+                                                    LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
+                                        }
+                                        //e.printStackTrace();
                                     }
-                                } catch (NullPointerException | ClassCastException e) {
-                                    if (downloadUpdateCallback != null) {
-                                        downloadUpdateCallback.update(ERRORE_RECUPERANDO_LE_RISORSE_PER_L_IP + IpValue + " (" + e.toString() + ")");
-                                    }
-                                    //e.printStackTrace();
-                                }
 
-                            } else {
-                                if (downloadUpdateCallback != null) {
-                                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION + i);
+                                } else {
+                                    if (downloadUpdateCallback != null) {
+                                        downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_OGGETTO_LOCATION + i +
+                                                LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
+                                    }
                                 }
                             }
-                        }
 
+                        } else {
+                            if (downloadUpdateCallback != null) {
+                                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP + IpValueTemp +
+                                        LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
+                            }
+                        }
                     } else {
                         if (downloadUpdateCallback != null) {
-                            downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LE_LOCATIONS_PER_L_IP + IpValue);
+                            downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP + IpValueTemp +
+                                    LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
                         }
-                    }
-                } else {
-                    if (downloadUpdateCallback != null) {
-                        downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_LA_PRIMA_LOCATED_RESOURCES_PER_L_IP + IpValue);
                     }
                 }
             } else {
                 if (downloadUpdateCallback != null) {
-                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP + IpValue);
+                    downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP + IpValueTemp +
+                            LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
+                    ;
                 }
             }
         } else {
-            if (downloadUpdateCallback!=null) {
-                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP + IpValue);
+            if (downloadUpdateCallback != null) {
+                downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP + IpValueTemp +
+                        LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
             }
         }
 
-        return respReturnCode;
+        return allOk;
+    }
+
+    /**
+     * Prova a recuperare i messaggi (campo "messages" dello stream Json) in caso di errore
+     *
+     * @return Concantenazione dei messaggi recuperati o stringa vuota
+     */
+    private String tryGetErrorMessages(JsonObject joMain) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Messaggio dal server:");
+        try {
+            JsonArray messagesArray = joMain.getJsonArray("messages");
+            if (messagesArray != null && messagesArray.size() > 0) {
+                for (int i = 0; i < messagesArray.size(); i++) {
+                    JsonArray messageObjects = messagesArray.getJsonArray(i);
+                    if (messageObjects != null && messageObjects.size() > 0) {
+
+                        sb.append(" - ");
+
+                        for (int j = 0; j < messageObjects.size(); j++) {
+                            sb.append(messageObjects.getString(j));
+                            sb.append(" - ");
+                        }
+                    }
+
+                    sb.append(System.lineSeparator());
+                }
+            }
+        } catch (ClassCastException | IndexOutOfBoundsException e) {
+            // Salto semplicemente l'eccezione
+        }
+        return sb.toString();
     }
 
     public ArrayList<LocationData> getAllLocationsData() {
@@ -221,6 +307,7 @@ public class RipeQuery {
 
     /**
      * Interroga stats.ripe.net per IP allo scopo di ottenere la country relativa
+     * Imposta la variabile di classe m_jsonData con il contenuto del json scaricato
      *
      * @param IpValue Indirizzo IP di cui conoscere la country. Modifica lo stato interno della classe con il json ritornato.
      * @return Stato della query
