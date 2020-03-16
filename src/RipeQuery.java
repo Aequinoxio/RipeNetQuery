@@ -303,6 +303,14 @@ public class RipeQuery {
         return locationData.covered_percentage;
     }
 
+    /**
+     * Ritorna la stringa json scaricata dal sito ripe.net corrispondente all'ultimo downloadAndParse effettuato
+     * @return Stringa json
+     */
+    public String getRawResponse(){
+        return new String(m_jsonData);
+    }
+
     ///////// PRIVATE METHODS /////////
 
     /**

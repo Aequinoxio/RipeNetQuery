@@ -26,7 +26,7 @@ import java.util.prefs.Preferences;
 
 public class RipeQueryUI {
     @NonNls
-    private static final String VERSIONE = "Versione 1.4 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
+    private static final String VERSIONE = "Versione 1.4.1 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
 
     @NonNls
     private static final String MY_BUNDLE = "strings";
@@ -63,6 +63,7 @@ public class RipeQueryUI {
     private static final String DATA_LOADED_FROM_FILE = StringBundle.getString("data.loaded.from.file");
 
     int m_masterCounter = 1; // Contatore per gli IP in tabella
+    DownloadWorker m_downloadWorker; // Oggetto per analizzare gli IP
 
     private JButton btnOpenFile;
     private JTextArea txtResults;
@@ -81,6 +82,7 @@ public class RipeQueryUI {
     private DefaultTableModel tblResultModel;
     private JLabel lblQueryResult;
     private JButton btnCaricaDatiDaFileButton;
+    private JButton btnSalvaDatiJSON;
 
     private static CoordinatesToMap coordinatesToGoogleMaps;
 
@@ -188,9 +190,10 @@ public class RipeQueryUI {
                 txtResults.setText("");
                 tblResultModel.setRowCount(0);
 
-                DownloadWorker downloadWorker = new DownloadWorker();
-                downloadWorker.execute();
+                m_downloadWorker = new DownloadWorker();
+                m_downloadWorker.execute();
 
+                //btnSalvaDatiJSON.setEnabled(true);
             }
         });
 
@@ -409,6 +412,9 @@ public class RipeQueryUI {
                 lblQueryResultValue.setText("");
                 lblStatusBar.setText(" ");
                 lblQueryResultValue.setText("");
+
+                m_downloadWorker=null;
+                btnSalvaDatiJSON.setEnabled(false);
             }
         });
 
@@ -443,7 +449,7 @@ public class RipeQueryUI {
                             return;
                         }
                     }
-                    if (saveFile(saveFileChoosen)) {
+                    if (saveFile(saveFileChoosen,true)) {
                         JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                         lblStatusBar.setText(SALVATO_CON_SUCCESSO);
                     } else {
@@ -458,11 +464,13 @@ public class RipeQueryUI {
             @Override
             public void actionPerformed(ActionEvent e) {
                 jFileChooser.setMultiSelectionEnabled(false);
-
-
                 int retVal = jFileChooser.showOpenDialog(mainPanel);
                 if (retVal == JFileChooser.APPROVE_OPTION) {
                     File selectedFile = jFileChooser.getSelectedFile();
+
+                    // Salvo l'ultima posizione
+                    prefs.put(LAST_USED_FOLDER, IPFile.getParent());
+
                     RipeQuery ripeQuery = new RipeQuery(null);
 
                     if (!ripeQuery.parseFromFile(DATA_LOADED_FROM_FILE, selectedFile)) {
@@ -472,48 +480,34 @@ public class RipeQueryUI {
                     }
 
                     updateTable(ripeQuery);
-//                    ////////////////////
-//                    // CODICE DUPLICATO DELLA SEZIONE CHE AGGIORNA LA TABELLA NEL METODO done DI DownloadWorker
-//                    ////////////////////
-//                    // Al temine del ciclo di recupero dati, mostro quelli che ho recuperato
-//                    int masterCounter = 1; // Contatore per mostrare i numeri di riga nella tabella
-//                    ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
-//                    for (RipeQuery.LocationData locationData : locationDataArrayList) {
-//                        txtResults.append(
-//                                masterCounter +
-//                                        " - " + locationData.IPQueried +
-//                                        " - " + locationData.search_time +
-//                                        " - " + locationData.resource +
-//                                        " - " + locationData.country +
-//                                        " - " + locationData.city +
-//                                        " - " + locationData.latitude +
-//                                        " - " + locationData.longitude +
-//                                        " - " + locationData.covered_percentage +
-//                                        " - " + locationData.query_time +
-//                                        " - " + locationData.latest_time +
-//                                        " - " + locationData.result_time +
-//                                        " - " + locationData.earliest_time +
-//                                        System.lineSeparator());
-//
-//                        tblResultModel.addRow(new Object[]{
-//                                masterCounter,
-//                                locationData.IPQueried,
-//                                locationData.search_time,
-//                                locationData.resource,
-//                                locationData.country,
-//                                locationData.city,
-//                                locationData.latitude,
-//                                locationData.longitude,
-//                                locationData.covered_percentage,
-//                                locationData.query_time,
-//                                locationData.latest_time,
-//                                locationData.result_time,
-//                                locationData.earliest_time});
-//
-//                        masterCounter++;
-//                    }
-//                    String IP = StringBundle.getString("ip");
-//                    lblQueryResultValue.setText(IP + (masterCounter - 1));
+
+                }
+            }
+        });
+        btnSalvaDatiJSON.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                jFileChooser.setMultiSelectionEnabled(false);
+                int retVal = jFileChooser.showSaveDialog(mainPanel);
+                if (retVal == JFileChooser.APPROVE_OPTION) {
+                    File saveFileChoosen = jFileChooser.getSelectedFile();
+
+                    // Salvo l'ultima posizione
+                    prefs.put(LAST_USED_FOLDER, saveFileChoosen.getParent());
+
+                    if (saveFileChoosen.exists()) {
+                        int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + FILE_ESISTE_SOVRASCRIVO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.OK_CANCEL_OPTION);
+                        if (chosenOption != JOptionPane.OK_OPTION) {
+                            return;
+                        }
+                    }
+                    if (saveFile(saveFileChoosen,false)) {
+                        JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        lblStatusBar.setText(SALVATO_CON_SUCCESSO);
+                    } else {
+                        JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
+                    }
                 }
             }
         });
@@ -634,11 +628,28 @@ public class RipeQueryUI {
     }
 
 
-    private boolean saveFile(File fileToBeSaved) {
+    /**
+     * Salvo i dato in un file. In caso fromTable = false ed i dati non sono stati ancora scaricati
+     * mostra un messaggio di errore
+     * @param fileToBeSaved File destinazione
+     * @param fromTable True se prelevo i dati dalla tabella, false se vanno presi dal json scaricato
+     * @return true se tutto è andato a buon fine, false altrimenti.
+     */
+    private boolean saveFile(File fileToBeSaved, boolean fromTable) {
         boolean result = false;
         try (BufferedWriter bfw = new BufferedWriter(new FileWriter(fileToBeSaved))) {
-            String tableData = tableToString(false);
-            bfw.write(tableData);
+            String dataToBeWritten=null;
+            if (fromTable) {
+                dataToBeWritten = tableToString(false);
+            } else {
+                if (m_downloadWorker==null){
+                    JOptionPane.showMessageDialog(mainPanel, "Non ho ancora scaricato alcun dato", INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    return false;
+                } else {
+                    dataToBeWritten = m_downloadWorker.getRawDownloadedJson();
+                }
+            }
+            bfw.write(dataToBeWritten);
             result = true;
         } catch (IOException e) {
             //e.printStackTrace();
@@ -837,52 +848,14 @@ public class RipeQueryUI {
 
             m_masterCounter = 1; // Resetto il contatore per mostrare i numeri di riga nella tabella
 
-//            // Al temine del ciclo di recupero dati, mostro quelli che ho recuperato
-//            ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
-//            for (RipeQuery.LocationData locationData : locationDataArrayList) {
-//                txtResults.append(
-//                        masterCounter +
-//                                " - " + locationData.IPQueried +
-//                                " - " + locationData.search_time +
-//                                " - " + locationData.resource +
-//                                " - " + locationData.country +
-//                                " - " + locationData.city +
-//                                " - " + locationData.latitude +
-//                                " - " + locationData.longitude +
-//                                " - " + locationData.covered_percentage +
-//                                " - " + locationData.query_time +
-//                                " - " + locationData.latest_time +
-//                                " - " + locationData.result_time +
-//                                " - " + locationData.earliest_time +
-//                                System.lineSeparator());
-//
-//                tblResultModel.addRow(new Object[]{
-//                        masterCounter,
-//                        locationData.IPQueried,
-//                        locationData.search_time,
-//                        locationData.resource,
-//                        locationData.country,
-//                        locationData.city,
-//                        locationData.latitude,
-//                        locationData.longitude,
-//                        locationData.covered_percentage,
-//                        locationData.query_time,
-//                        locationData.latest_time,
-//                        locationData.result_time,
-//                        locationData.earliest_time
-//                });
-//
-//                masterCounter++;
-//
-//                lblQueryResultValue.setText(IP + (masterCounter - 1));
-//            }
-
             updateTable(ripeQuery);
 
             btnIniziaAnalisi.setEnabled(true);
             pbWorking.setVisible(false);
             lblStatusBar.setText(FINISHED_FETCHED + masterPublishCounter + IP1);
 
+            // Abilito il bottone per il salvataggio del json scaricato
+            btnSalvaDatiJSON.setEnabled(true);
         }
 
         @Override
@@ -891,6 +864,14 @@ public class RipeQueryUI {
             masterPublishCounter++;
             lblQueryResultValue.setText(IP + (masterPublishCounter - 1) + " di " + IPToBeChecked.size());
             pbWorking.setValue(masterPublishCounter);
+        }
+
+        // TODO: Non molto bello
+        public String getRawDownloadedJson(){
+            if (ripeQuery!=null){
+                return ripeQuery.getRawResponse();
+            }
+            return null;
         }
     }
 

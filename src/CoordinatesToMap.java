@@ -47,8 +47,11 @@ public class CoordinatesToMap extends JFrame {
         });
     }
 
-    // TODO: Da sistemare il fatto che al secondo avvio del frame no nviene visualizzato nulla
-    // Sembra legato al fatto che c'è già un runnable in esecuzione
+    // TODO: Da sistemare il fatto che al secondo avvio del frame non viene visualizzato nulla
+    // Sembra un comportamento legato al fatto che c'è già un runnable in esecuzione e non ne viene
+    // lanciato un altro
+    // Sembra che lasciando aperta una finestra il problema non si presenti, chiudendole tutte
+    // quando si riapre il frame no nviene visualizzata la webview
     private void setupUI() {
         Platform.runLater(new Runnable() {
             @Override
@@ -87,11 +90,11 @@ public class CoordinatesToMap extends JFrame {
             }
         });
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        //setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         pack();
     }
 
     private void onOK() {
-        // add your code here
         //Platform.exit();
         dispose();
     }
