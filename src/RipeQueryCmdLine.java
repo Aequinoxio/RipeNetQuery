@@ -4,9 +4,8 @@
 
 import org.jetbrains.annotations.NotNull;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 public class RipeQueryCmdLine {
@@ -18,7 +17,10 @@ public class RipeQueryCmdLine {
             String ipFile = args[0];
             //String ipFile = "C:\\Users\\utente\\Downloads\\temp\\ip.txt";
 
-            try (BufferedReader bfr = new BufferedReader(new FileReader(ipFile))) {
+//            try (BufferedReader bfr = new BufferedReader(new FileReader(ipFile))) {
+            try (BufferedReader bfr = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(ipFile), StandardCharsets.UTF_8))
+            ) {
                 String linea;
                 while ((linea = bfr.readLine()) != null) {
                     System.out.print(linea + " : ");

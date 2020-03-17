@@ -17,7 +17,7 @@ import java.util.ResourceBundle;
 public class RipeQuery {
     // Bundle
     @NonNls
-    private static final String MY_BUNDLE = "strings";
+    protected static final String MY_BUNDLE = "strings";
     private static final ResourceBundle StringBundle = ResourceBundle.getBundle(MY_BUNDLE, Locale.getDefault());
 
     // Message strings
@@ -28,6 +28,7 @@ public class RipeQuery {
     private static final String ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP = StringBundle.getString("errore.nel.recuperare.l.array.delle.located.resources.per.l.ip");
     private static final String ERRORE_NEL_RECUPERARE_I_DATI_PER_L_IP = StringBundle.getString("errore.nel.recuperare.i.dati.per.l.ip");
     private static final String CHECKING = StringBundle.getString("checking");
+    private static final String MESSAGGIO_DAL_SERVER = StringBundle.getString("messaggio.dal.server");
 
     private static final String LOG_MESSAGE_SEPARATOR = "\n\t- ";
 
@@ -38,7 +39,7 @@ public class RipeQuery {
     Proxy proxy = Proxy.NO_PROXY;
 
     // Query variables
-    private final String RipeUrl = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
+    private static final String RIPE_URL = "https://stat.ripe.net/data/maxmind-geo-lite/data.json?resource=";
 
     // Raw data fetched
     String m_jsonData;
@@ -88,16 +89,19 @@ public class RipeQuery {
     }
 
     /**
-     *
-     * @param IpValueTemp
-     * @param tempFile
+     * Carica il json da file e ne esegue il parsing
+     * @param IpValueTemp Ip a cui il file si riferisce
+     * @param tempFile File da caricare
      * @return true se tutto è andato a buon fine, false in caso di errore nel caricamento del file o nel parsing
      */
     public boolean parseFromFile(String IpValueTemp, File tempFile) {
 
         StringBuilder sb = new StringBuilder();
-        // File tempFile = new File("C:\\Users\\utente\\Downloads\\temp\\193_0_0_0_0_8_data.json");
-        try (BufferedReader bfr = new BufferedReader(new FileReader(tempFile))) {
+
+//        try (BufferedReader bfr = new BufferedReader(new FileReader(tempFile))) {
+        try (BufferedReader bfr = new BufferedReader(
+                new InputStreamReader(new FileInputStream(tempFile),StandardCharsets.UTF_8))
+        ) {
             String linea;
             while ((linea = bfr.readLine()) != null) {
                 sb.append(linea);
@@ -219,7 +223,6 @@ public class RipeQuery {
                 if (downloadUpdateCallback != null) {
                     downloadUpdateCallback.update(ERRORE_NEL_RECUPERARE_L_ARRAY_DELLE_LOCATED_RESOURCES_PER_L_IP + IpValueTemp +
                             LOG_MESSAGE_SEPARATOR + tryGetErrorMessages(joMain));
-                    ;
                 }
             }
         } else {
@@ -239,7 +242,7 @@ public class RipeQuery {
      */
     private String tryGetErrorMessages(JsonObject joMain) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Messaggio dal server:");
+        sb.append(MESSAGGIO_DAL_SERVER);
         try {
             JsonArray messagesArray = joMain.getJsonArray("messages");
             if (messagesArray != null && messagesArray.size() > 0) {
@@ -308,7 +311,10 @@ public class RipeQuery {
      * @return Stringa json
      */
     public String getRawResponse(){
-        return new String(m_jsonData);
+        // Clono l'oggetto interno per evitare di esporlo
+        StringBuilder sb = new StringBuilder();
+        sb.append(m_jsonData);
+        return sb.toString();
     }
 
     ///////// PRIVATE METHODS /////////
@@ -324,7 +330,7 @@ public class RipeQuery {
         HttpStatusCodes respReturnCode = HttpStatusCodes.UNKNOWN_CODE;
 
         HttpsURLConnection urlConnection;
-        URL url = new URL(RipeUrl + IpValue);
+        URL url = new URL(RIPE_URL + IpValue);
         urlConnection = (HttpsURLConnection) url.openConnection(proxy);
 
         // Indispensabile altrimenti si ottiene un errore 403

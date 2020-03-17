@@ -3,13 +3,10 @@
  -----------------------------------------------------------------------------*/
 
 import javax.swing.*;
-import javax.swing.text.html.HTMLEditorKit;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.Scanner;
 
 public class DlgAbout extends JDialog {
     private JPanel contentPane;

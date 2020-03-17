@@ -7,7 +7,6 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.embed.swing.JFXPanel;
 import javafx.scene.Scene;
-import javafx.scene.layout.StackPane;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 
@@ -27,9 +26,9 @@ public class CoordinatesToMap extends JFrame {
     private JLabel txtLongitude;
     private JLabel txtStatus;
     private WebEngine webEngine;
-    private JFXPanel jfxPanel = new JFXPanel();
-    double latitude;
-    double longitude;
+    private final JFXPanel jfxPanel = new JFXPanel();
+    final double latitude;
+    final double longitude;
 
     private static final Dimension PREFERRED_SIZE = new Dimension(1024, 768);
 
@@ -107,7 +106,7 @@ public class CoordinatesToMap extends JFrame {
                 String tmp;
                 try {
                     tmp = new URL(url).toExternalForm();
-                    txtStatus.setText(tmp + "***");
+                    //txtStatus.setText(tmp + "***");
                 } catch (MalformedURLException e) {
                     return;
                 }
@@ -126,16 +125,16 @@ public class CoordinatesToMap extends JFrame {
     }
 
 
-    public static void main(String[] args) {
-        CoordinatesToMap dialog = new CoordinatesToMap(0, 0);
-        // dialog.pack();
-        //dialog.temp(dialog);
-        dialog.setVisible(true);
-        //dialog.loadURL("https://www.google.com/maps/@41.9100711,12.3959222,11z");
-        //dialog.loadURL("https://www.openstreetmap.org/#map=17/41.89574/12.49953");
-        dialog.loadAndDisplayMap();
-        //System.exit(0);
-    }
+//    public static void main(String[] args) {
+//        CoordinatesToMap dialog = new CoordinatesToMap(0, 0);
+//        // dialog.pack();
+//        //dialog.temp(dialog);
+//        dialog.setVisible(true);
+//        //dialog.loadURL("https://www.google.com/maps/@41.9100711,12.3959222,11z");
+//        //dialog.loadURL("https://www.openstreetmap.org/#map=17/41.89574/12.49953");
+//        dialog.loadAndDisplayMap();
+//        //System.exit(0);
+//    }
 
     private void createUIComponents() {
         // TODO: place custom component creation code here

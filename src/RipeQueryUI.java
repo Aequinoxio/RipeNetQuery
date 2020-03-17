@@ -2,6 +2,7 @@
  * Copyright (c) 2020. This code follow the GPL v3 license scheme.
  ******************************************************************************/
 
+import javafx.application.Platform;
 import org.jetbrains.annotations.NonNls;
 
 import javax.swing.*;
@@ -20,16 +21,17 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.List;
 import java.util.prefs.Preferences;
 
 public class RipeQueryUI {
     @NonNls
-    private static final String VERSIONE = "Versione 1.4.1 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
+    private static final String VERSIONE = "Versione 1.4.2 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
 
     @NonNls
-    private static final String MY_BUNDLE = "strings";
+    private static final String MY_BUNDLE = RipeQuery.MY_BUNDLE;
     private static final ResourceBundle StringBundle = ResourceBundle.getBundle(MY_BUNDLE, Locale.getDefault());
 
     private static final String INFORMAZIONE_TITLE_DIALOG = StringBundle.getString("informazione");
@@ -61,6 +63,7 @@ public class RipeQueryUI {
     private static final String REGEXP_SPLIT_LINES = "\\r?\\n";
     private static final String COPIA_LE_RIGHE_SELEZIONATE = StringBundle.getString("copia.le.righe.selezionate");
     private static final String DATA_LOADED_FROM_FILE = StringBundle.getString("data.loaded.from.file");
+    private static final String NON_HO_ANCORA_SCARICATO_ALCUN_DATO = StringBundle.getString("non.ho.ancora.scaricato.alcun.dato");
 
     int m_masterCounter = 1; // Contatore per gli IP in tabella
     DownloadWorker m_downloadWorker; // Oggetto per analizzare gli IP
@@ -84,7 +87,7 @@ public class RipeQueryUI {
     private JButton btnCaricaDatiDaFileButton;
     private JButton btnSalvaDatiJSON;
 
-    private static CoordinatesToMap coordinatesToGoogleMaps;
+    //private static CoordinatesToMap coordinatesToGoogleMaps;
 
     // Provo a riaprire il file chooser dall'ultima posizione salvata
     @NonNls
@@ -469,7 +472,7 @@ public class RipeQueryUI {
                     File selectedFile = jFileChooser.getSelectedFile();
 
                     // Salvo l'ultima posizione
-                    prefs.put(LAST_USED_FOLDER, IPFile.getParent());
+                    prefs.put(LAST_USED_FOLDER, selectedFile.getParent());
 
                     RipeQuery ripeQuery = new RipeQuery(null);
 
@@ -637,13 +640,16 @@ public class RipeQueryUI {
      */
     private boolean saveFile(File fileToBeSaved, boolean fromTable) {
         boolean result = false;
-        try (BufferedWriter bfw = new BufferedWriter(new FileWriter(fileToBeSaved))) {
+        //try (BufferedWriter bfw = new BufferedWriter(new FileWriter(fileToBeSaved))) {
+        try (BufferedWriter bfw = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(fileToBeSaved), StandardCharsets.UTF_8))
+        ) {
             String dataToBeWritten=null;
             if (fromTable) {
                 dataToBeWritten = tableToString(false);
             } else {
                 if (m_downloadWorker==null){
-                    JOptionPane.showMessageDialog(mainPanel, "Non ho ancora scaricato alcun dato", INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(mainPanel, NON_HO_ANCORA_SCARICATO_ALCUN_DATO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                     return false;
                 } else {
                     dataToBeWritten = m_downloadWorker.getRawDownloadedJson();
@@ -665,7 +671,10 @@ public class RipeQueryUI {
      */
     private int parseFile() {
         int skippedValidIP = 0;
-        try (BufferedReader bfr = new BufferedReader(new FileReader(IPFile))) {
+        //try (BufferedReader bfr = new BufferedReader(new FileReader(IPFile))) {
+        try (BufferedReader bfr = new BufferedReader(
+                new InputStreamReader( new FileInputStream(IPFile),StandardCharsets.UTF_8))
+        ) {
             String linea;
             while ((linea = bfr.readLine()) != null) {
                 // Check se è un IP valido
@@ -793,6 +802,7 @@ public class RipeQueryUI {
     }
 
     class DownloadWorker extends SwingWorker<ArrayList<RipeQuery.LocationData>, String> implements DownloadUpdateCallback {
+        private final String _DI_ = StringBundle.getString("di");
         private final String ERROR = StringBundle.getString("error.t");
         private final String IP = StringBundle.getString("ip");
         private final String FINISHED_FETCHED = StringBundle.getString("finished.fetched");
@@ -862,7 +872,7 @@ public class RipeQueryUI {
         public void update(String message) {
             publish(message);
             masterPublishCounter++;
-            lblQueryResultValue.setText(IP + (masterPublishCounter - 1) + " di " + IPToBeChecked.size());
+            lblQueryResultValue.setText(IP + (masterPublishCounter - 1) + _DI_ + IPToBeChecked.size());
             pbWorking.setValue(masterPublishCounter);
         }
 
