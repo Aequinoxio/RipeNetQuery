@@ -86,6 +86,8 @@ public class RipeQueryUI {
     private JLabel lblQueryResult;
     private JButton btnCaricaDatiDaFileButton;
     private JButton btnSalvaDatiJSON;
+    private JTextField txtManualIP;
+    private JButton aggiungiIPButton;
 
     //private static CoordinatesToMap coordinatesToGoogleMaps;
 
@@ -512,6 +514,51 @@ public class RipeQueryUI {
                         lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
                     }
                 }
+            }
+        });
+        
+        aggiungiIPButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // Raggruppare in un'unica funzione (vedi incolla ip)
+                String linea = txtManualIP.getText();
+                int startingIPNumbers = IPToBeChecked.size();
+                int skippedIP=0;
+                if (linea.matches(IPRegexp)) {
+                    if (!IPToBeChecked.contains(linea)) {
+                        IPToBeChecked.add(linea);
+                        txtIpList.append(linea);
+                        txtIpList.append(System.lineSeparator());
+                    } else {
+
+                        skippedIP++;
+                    }
+                }
+
+
+                lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
+
+                if (IPToBeChecked.size() > 0) {
+                    if (IPToBeChecked.size() == startingIPNumbers) {
+                        if (skippedIP>0){
+                            JOptionPane.showMessageDialog(mainPanel, "IP già presente", INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        } else {
+                            JOptionPane.showMessageDialog(mainPanel, "IP npn valido", INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+
+                    btnIniziaAnalisi.setEnabled(true);
+                    btnCancellaTutto.setEnabled(true);
+
+                    // Specifico per questo pulsante
+                    txtManualIP.setText("");
+
+                } else {
+                    JOptionPane.showMessageDialog(mainPanel, "IP non valido", DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
+                    btnIniziaAnalisi.setEnabled(false);
+                    btnCancellaTutto.setEnabled(false);
+                }
+
             }
         });
     }

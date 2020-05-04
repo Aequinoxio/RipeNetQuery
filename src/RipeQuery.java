@@ -176,7 +176,9 @@ public class RipeQuery {
 
                                             locationData.search_time = joMain.getString("time");
 
-                                            locationData.query_time = data.getJsonObject("parameters").getString("query_time");
+                                            // Al 2 maggio 2020 sembra che questo parametro sia stato cancellato dal json
+                                            //locationData.query_time = data.getJsonObject("parameters").getString("query_time");
+
                                             locationData.latest_time = data.getString("latest_time");
                                             locationData.earliest_time = data.getString("earliest_time");
                                             locationData.result_time = data.getString("result_time");
