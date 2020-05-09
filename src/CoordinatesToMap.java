@@ -18,6 +18,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 
 public class CoordinatesToMap extends JFrame {
+    private static final String HTTPS_WWW_OPENSTREETMAP_ORG_MAP = "https://www.openstreetmap.org/#map=17/";
     private JPanel pnlMainPanel;
     private JButton btnChiudi;
     private JPanel pnlMapPanel;
@@ -118,7 +119,7 @@ public class CoordinatesToMap extends JFrame {
 
 
     private void loadAndDisplayMap() {
-        String mapUrl = "https://www.openstreetmap.org/#map=17/" + String.valueOf(latitude) + "/" + String.valueOf(longitude);
+        String mapUrl = HTTPS_WWW_OPENSTREETMAP_ORG_MAP + String.valueOf(latitude) + "/" + String.valueOf(longitude);
         txtStatus.setText(mapUrl);
         loadURL(mapUrl);
         //loadURL("https://www.google.com/maps/@41.9100711,12.3959222,11z");
@@ -137,45 +138,7 @@ public class CoordinatesToMap extends JFrame {
 //    }
 
     private void createUIComponents() {
-        // TODO: place custom component creation code here
         pnlMapPanel = new JPanel();
         //pnlMapPanel.setPreferredSize(PREFERRED_SIZE);
     }
-
-
-//    public void temp(CoordinatesToGoogleMaps test) {
-//
-//        // JFrame test = new JFrame("Google Maps");
-//
-//        try {
-//            //String imageUrl = "http://maps.google.com/staticmap?center=40,26&zoom=1&size=150x112&maptype=satellite&key=ABQIAAAAgb5KEVTm54vkPcAkU9xOvBR30EG5jFWfUzfYJTWEkWk2p04CHxTGDNV791-cU95kOnweeZ0SsURYSA&format=jpg";
-//            String imageUrl = "https://www.google.com/maps/@41.442726,7.9101561,6z";
-//            String destinationFile = "C:\\Users\\utente\\Downloads\\temp\\image.jpg";
-//            String str = destinationFile;
-//            URL url = new URL(imageUrl);
-//            InputStream is = url.openStream();
-//            OutputStream os = new FileOutputStream(destinationFile);
-//
-//            byte[] b = new byte[2048];
-//            int length;
-//
-//            while ((length = is.read(b)) != -1) {
-//                os.write(b, 0, length);
-//            }
-//
-//            is.close();
-//            os.close();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            System.exit(1);
-//        }
-//
-//        test.add(new JLabel(new ImageIcon((new ImageIcon("image.jpg")).getImage().getScaledInstance(630, 600,
-//                java.awt.Image.SCALE_SMOOTH))));
-//
-//        test.setVisible(true);
-//        test.pack();
-//
-//    }
-
 }

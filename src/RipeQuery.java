@@ -9,10 +9,7 @@ import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.ResourceBundle;
+import java.util.*;
 
 public class RipeQuery {
     // Bundle
@@ -76,7 +73,6 @@ public class RipeQuery {
 
         respReturnCode = queryIPAddressForCountry(IpValue);
 
-
 // TODO: Da sistemare
         // Se non ho ottenuto nulla ritorno il codice di errore e basta, altrimenti faccio il parsing dello stream
         if (m_jsonData == null || m_jsonData.isEmpty()) {
@@ -90,17 +86,17 @@ public class RipeQuery {
 
     /**
      * Carica il json da file e ne esegue il parsing
+     *
      * @param IpValueTemp Ip a cui il file si riferisce
-     * @param tempFile File da caricare
+     * @param tempFile    File da caricare
      * @return true se tutto è andato a buon fine, false in caso di errore nel caricamento del file o nel parsing
      */
     public boolean parseFromFile(String IpValueTemp, File tempFile) {
 
         StringBuilder sb = new StringBuilder();
 
-//        try (BufferedReader bfr = new BufferedReader(new FileReader(tempFile))) {
         try (BufferedReader bfr = new BufferedReader(
-                new InputStreamReader(new FileInputStream(tempFile),StandardCharsets.UTF_8))
+                new InputStreamReader(new FileInputStream(tempFile), StandardCharsets.UTF_8))
         ) {
             String linea;
             while ((linea = bfr.readLine()) != null) {
@@ -127,14 +123,38 @@ public class RipeQuery {
         // Parsing dello stream
         StringReader sr = new StringReader(m_jsonData);
         JsonReader jsonReader = Json.createReader(sr);
-        JsonObject joMain = jsonReader.readObject();
+        JsonObject joMain = null;
+        try {
+            joMain = jsonReader.readObject();
+        } catch (Exception e) {
+            if (downloadUpdateCallback != null) {
+                downloadUpdateCallback.update("Errore nell'interpretazione dell'oggetto JSON"
+                        + " (" + e.toString() + ")" +
+                        LOG_MESSAGE_SEPARATOR);
+            }
+            //e.printStackTrace();
+        }
         jsonReader.close();
+
+        // Se non riesco ad interpretare il json esco
+        if (joMain==null){
+            return false;
+        }
 
         // Controllo tutti i rami per capire se esistono (ad es. 231.4.5.6 ha l'array delle locations vuoto)
         JsonObject data = joMain.getJsonObject("data");
+
         //String IPResource;
 
         if (data != null) {
+            String query_time;
+            // Al 2 maggio 2020 sembra che questo parametro sia stato cancellato dal json. Se ho un errore salto tutto ed imposto un valore di default
+            try {
+                query_time = data.getJsonObject("parameters").getString("query_time");
+            } catch (NullPointerException | ClassCastException e){
+                query_time="-- NON DISPONIBILE --";
+            }
+
             JsonArray locatedResources = data.getJsonArray("located_resources");
 
             if (locatedResources != null && locatedResources.size() > 0) {
@@ -168,6 +188,7 @@ public class RipeQuery {
 
                                             locationData.IPQueried = IpValueTemp;
                                             locationData.resource = resourcesArray.getString(j);
+
                                             locationData.country = locationObject.getString("country");
                                             locationData.city = locationObject.getString("city");
                                             locationData.latitude = locationObject.getJsonNumber("latitude").doubleValue();
@@ -176,8 +197,7 @@ public class RipeQuery {
 
                                             locationData.search_time = joMain.getString("time");
 
-                                            // Al 2 maggio 2020 sembra che questo parametro sia stato cancellato dal json
-                                            //locationData.query_time = data.getJsonObject("parameters").getString("query_time");
+                                            locationData.query_time = query_time;
 
                                             locationData.latest_time = data.getString("latest_time");
                                             locationData.earliest_time = data.getString("earliest_time");
@@ -310,9 +330,10 @@ public class RipeQuery {
 
     /**
      * Ritorna la stringa json scaricata dal sito ripe.net corrispondente all'ultimo downloadAndParse effettuato
+     *
      * @return Stringa json
      */
-    public String getRawResponse(){
+    public String getRawResponse() {
         // Clono l'oggetto interno per evitare di esporlo
         StringBuilder sb = new StringBuilder();
         sb.append(m_jsonData);

@@ -2,7 +2,6 @@
  * Copyright (c) 2020. This code follow the GPL v3 license scheme.
  ******************************************************************************/
 
-import javafx.application.Platform;
 import org.jetbrains.annotations.NonNls;
 
 import javax.swing.*;
@@ -16,19 +15,17 @@ import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
+import java.awt.event.*;
 import java.io.*;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.prefs.Preferences;
 
 public class RipeQueryUI {
     @NonNls
-    private static final String VERSIONE = "Versione 1.4.2 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
+    private static final String VERSIONE = "Versione 1.4.5 (stabile)" + System.lineSeparator() + "By Gabriele Galluzzo";
 
     @NonNls
     private static final String MY_BUNDLE = RipeQuery.MY_BUNDLE;
@@ -64,6 +61,12 @@ public class RipeQueryUI {
     private static final String COPIA_LE_RIGHE_SELEZIONATE = StringBundle.getString("copia.le.righe.selezionate");
     private static final String DATA_LOADED_FROM_FILE = StringBundle.getString("data.loaded.from.file");
     private static final String NON_HO_ANCORA_SCARICATO_ALCUN_DATO = StringBundle.getString("non.ho.ancora.scaricato.alcun.dato");
+    private static final String IP_NON_VALIDO = StringBundle.getString("ip.non.valido");
+    private static final String IP_GIA_PRESENTE = StringBundle.getString("ip.gia.presente");
+    private static final String CANCELLA_IP = "Cancella IP";
+    private static final String MOSTRA_SULLA_MAPPA = "Mostra sulla mappa";
+    private static final String CONFERMA_ELIMINAZIONE_DEGLI_IP_SELEZIONATI = "Conferma eliminazione degli ip selezionati";
+    private static final String RIMOSSO = "Rimosso: ";
 
     int m_masterCounter = 1; // Contatore per gli IP in tabella
     DownloadWorker m_downloadWorker; // Oggetto per analizzare gli IP
@@ -73,7 +76,8 @@ public class RipeQueryUI {
     private JPanel mainPanel;
     private JButton btnIniziaAnalisi;
     private JLabel lblStatus;
-    private JTextArea txtIpList;
+    private JList<String> txtIpList;
+    private DefaultListModel<String> txtIpListModel = new DefaultListModel<>();
     private JButton btnCancellaTutto;
     private JTable tblResults;
     private JButton btnCopyToclipboard;
@@ -88,6 +92,8 @@ public class RipeQueryUI {
     private JButton btnSalvaDatiJSON;
     private JTextField txtManualIP;
     private JButton aggiungiIPButton;
+    private JTextField txtIpToBeSelected;
+    private JButton btnSelectIP;
 
     //private static CoordinatesToMap coordinatesToGoogleMaps;
 
@@ -107,6 +113,7 @@ public class RipeQueryUI {
     @NonNls
     private final static String IPRegexp = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\/\\d+){0,1}$";
 
+    // Intestazioni della tabella dei risultati
     private static final String NUM = StringBundle.getString("num");
     private static final String SEARCHED_IP = StringBundle.getString("searched.ip");
     private static final String SEARCH_TIME = StringBundle.getString("search.time");
@@ -126,6 +133,8 @@ public class RipeQueryUI {
             LATITUDE, LONGITUDE, COVERED_PERCENTAGE,
             QUERY_TIME, LATEST_TIME, RESULT_TIME, EARLIEST_TIME};
 
+    // Riga selezionata al click destro, serve per selezionare le coordinate relative alla riga e mostrare la corrispondente mappa
+    private int m_tblResult_popupRow = -1;
 
     public RipeQueryUI() {
         // Margine personalizzato nelle label
@@ -134,91 +143,107 @@ public class RipeQueryUI {
                 new LineBorder(Color.BLACK, 1, true),
                 margin));
 
-        btnOpenFile.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                jFileChooser.setMultiSelectionEnabled(false);
-                int retVal = jFileChooser.showOpenDialog(mainPanel);
-                if (retVal == JFileChooser.APPROVE_OPTION) {
-                    IPFile = jFileChooser.getSelectedFile();
+        txtIpList.setModel(txtIpListModel);
 
-                    // Salvo l'ultima posizione
-                    prefs.put(LAST_USED_FOLDER, IPFile.getParent());
+        btnOpenFile.addActionListener(e -> {
+            jFileChooser.setMultiSelectionEnabled(false);
+            int retVal = jFileChooser.showOpenDialog(mainPanel);
+            if (retVal == JFileChooser.APPROVE_OPTION) {
+                IPFile = jFileChooser.getSelectedFile();
 
-                    if (!IPFile.exists()) {
-                        JOptionPane.showMessageDialog(mainPanel, IPFile.getAbsolutePath() + FILE_NON_TROVATO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
+                // Salvo l'ultima posizione
+                prefs.put(LAST_USED_FOLDER, IPFile.getParent());
+
+                if (!IPFile.exists()) {
+                    JOptionPane.showMessageDialog(mainPanel, IPFile.getAbsolutePath() + FILE_NON_TROVATO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
+                } else {
+                    ///// Non reinizializzo l'array, aggiungo quello che trovo
+                    IPFilename = IPFile.getAbsolutePath();
+
+                    int startingIPNumbers = IPToBeChecked.size();
+                    int skippedIP = parseFile(); // Aggiorno l'array IPToBeChecked
+                    lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size() +
+                            IP_DUPLICATI + skippedIP);
+
+                    txtResults.append(CARICATI + (IPToBeChecked.size() - startingIPNumbers) + IP_DAL_FILE + IPFilename + " " + System.lineSeparator());
+
+                    // Se ne trovo almeno uno attivo il bottone della ricerca
+                    if (IPToBeChecked.size() > 0) {
+                        btnIniziaAnalisi.setEnabled(true);
+                        btnCancellaTutto.setEnabled(true);
+
+                        // Se non ho aggiunto ip ne do info
+                        if (IPToBeChecked.size() == startingIPNumbers) {
+                            JOptionPane.showMessageDialog(mainPanel, DLG_FILE_IP_DUPLICATES, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        }
+
                     } else {
-                        ///// Non reinizializzo l'array, aggiungo quello che trovo
-                        IPFilename = IPFile.getAbsolutePath();
+                        btnIniziaAnalisi.setEnabled(false);
+                        btnCancellaTutto.setEnabled(false);
+                        JOptionPane.showMessageDialog(mainPanel, DLG_FILE_IP_ERROR, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    }
 
-                        int startingIPNumbers = IPToBeChecked.size();
-                        int skippedIP = parseFile(); // Aggiorno l'array IPToBeChecked
-                        lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size() +
-                                IP_DUPLICATI + skippedIP);
-
-                        txtResults.append(CARICATI + (IPToBeChecked.size() - startingIPNumbers) + IP_DAL_FILE + IPFilename + " " + System.lineSeparator());
-
-                        // Se ne trovo almeno uno attivo il bottone della ricerca
-                        if (IPToBeChecked.size() > 0) {
-                            btnIniziaAnalisi.setEnabled(true);
-                            btnCancellaTutto.setEnabled(true);
-
-                            // Se non ho aggiunto ip ne do info
-                            if (IPToBeChecked.size() == startingIPNumbers) {
-                                JOptionPane.showMessageDialog(mainPanel, DLG_FILE_IP_DUPLICATES, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                            }
-
-                        } else {
-                            btnIniziaAnalisi.setEnabled(false);
-                            btnCancellaTutto.setEnabled(false);
-                            JOptionPane.showMessageDialog(mainPanel, DLG_FILE_IP_ERROR, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-
-                        }
-
-                        txtIpList.setText("");
-                        for (String IP : IPToBeChecked) {
-                            txtIpList.append(IP);
-                            txtIpList.append(System.lineSeparator());
-                        }
+                    txtIpListModel.removeAllElements();
+                    for (String IP : IPToBeChecked) {
+                        txtIpListModel.addElement(IP);
                     }
                 }
             }
         });
 
-        btnIniziaAnalisi.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                btnIniziaAnalisi.setEnabled(false);
-                pbWorking.setVisible(true);
-                pbWorking.setMaximum(IPToBeChecked.size());
-                lblStatusBar.setText(STATUS_WORKING);
-                txtResults.setText("");
-                tblResultModel.setRowCount(0);
+        btnIniziaAnalisi.addActionListener(e -> {
+            btnIniziaAnalisi.setEnabled(false);
+            pbWorking.setVisible(true);
+            pbWorking.setMaximum(IPToBeChecked.size());
+            lblStatusBar.setText(STATUS_WORKING);
+            txtResults.setText("");
+            tblResultModel.setRowCount(0);
 
-                m_downloadWorker = new DownloadWorker();
-                m_downloadWorker.execute();
+            m_downloadWorker = new DownloadWorker();
+            m_downloadWorker.execute();
 
-                //btnSalvaDatiJSON.setEnabled(true);
-            }
+            //btnSalvaDatiJSON.setEnabled(true);
         });
 
-        // Creo il popup menu per l'incolla IP nella jtextarea specifica
+        // Creo il popup menu per l'incolla IP nella lista
         JPopupMenu IPListPopupMenu = new JPopupMenu(INCOLLA_IP_DA_CONTROLLARE);
         JMenuItem incollaIPMenuItem = new JMenuItem(INCOLLA_IP);
-        incollaIPMenuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                incollaDaClipBoard();
-            }
-        });
+        incollaIPMenuItem.addActionListener(e -> incollaDaClipBoard());
+
+        // Creo il popup menu per la cancellazione degli IP dalla lista
+        JMenuItem cancellaIPMenuItem = new JMenuItem(CANCELLA_IP);
+        cancellaIPMenuItem.addActionListener(e -> cancellaIP());
 
         IPListPopupMenu.add(incollaIPMenuItem);
+        IPListPopupMenu.add(cancellaIPMenuItem);
 
         // Aggiungo il mouse listener al componente giusto
         txtIpList.addMouseListener(new MouseListener() {
             @Override
             public void mouseClicked(MouseEvent e) {
-
+                JList<String> lista = (JList<String>) e.getSource();
+                if (e.getClickCount() == 2) {
+                    Rectangle r = lista.getCellBounds(0, lista.getLastVisibleIndex());
+                    if (r != null && r.contains(e.getPoint())) {
+                        int index = lista.locationToIndex(e.getPoint());
+                        if (index >= 0) {
+                            //String s = lista.getModel().getElementAt(index);
+                            cancellaIP();
+//                            int retval=JOptionPane.showConfirmDialog(mainPanel,"Conferma eliminazione "+s,"Conferma",JOptionPane.OK_CANCEL_OPTION);
+//                            if (retval==JOptionPane.OK_OPTION) {
+//                                txtResults.append("Rimosso: "+s+"\n");
+//                                txtIpListModel.remove(index);
+//                                //IPToBeChecked.remove(index); // TODO: probabilmente è più sicuro azzerare l'array e copiarvi sopra il contenuto della JList
+//                                IPToBeChecked.clear();
+//
+//                                // TODO: Forse c'è un modo migliore per copiare gli elementi della jlist in un array
+//                                for (Enumeration enumeration = txtIpListModel.elements();enumeration.hasMoreElements();){
+//                                    IPToBeChecked.add((String)enumeration.nextElement());
+//                                }
+//                            }
+                        }
+                    }
+                }
             }
 
             @Override
@@ -254,12 +279,7 @@ public class RipeQueryUI {
         // Creo il popup menu per l'incolla IP nella jtextarea specifica
         JPopupMenu logPopupMenu = new JPopupMenu(COPIA_LOG);
         JMenuItem logMenuItem = new JMenuItem(COPIA_LOG);
-        logMenuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                copiaLogSuClipboard();
-            }
-        });
+        logMenuItem.addActionListener(e -> copiaLogSuClipboard());
 
         logPopupMenu.add(logMenuItem);
 
@@ -303,12 +323,7 @@ public class RipeQueryUI {
         // Creo il popup menu per copiare gli IP dalla tabella specifica
         JPopupMenu resultsTablePopupMenu = new JPopupMenu(COPIA_DATI);
         JMenuItem resultsTableMenuItem = new JMenuItem(COPIA_DATI);
-        resultsTableMenuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                copiaTabellaSuClipboard(false);
-            }
-        });
+        resultsTableMenuItem.addActionListener(e -> copiaTabellaSuClipboard(false));
 
         resultsTablePopupMenu.add(resultsTableMenuItem);
 
@@ -317,58 +332,66 @@ public class RipeQueryUI {
         // Creo il popup menu per la copia delle righe selezionate
         //JPopupMenu resultsTableSelectedRowsPopupMenu = new JPopupMenu(COPIA_DATI);
         JMenuItem resultsTableSelectedRowsPopupMenu = new JMenuItem(COPIA_LE_RIGHE_SELEZIONATE);
-        resultsTableSelectedRowsPopupMenu.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                //copiaRigheSelezionateSuClipboard();
-                copiaTabellaSuClipboard(true);
-            }
+        resultsTableSelectedRowsPopupMenu.addActionListener(e -> {
+            //copiaRigheSelezionateSuClipboard();
+            copiaTabellaSuClipboard(true);
+        });
+
+        JMenuItem resultsTableShowMapPopupMenu = new JMenuItem(MOSTRA_SULLA_MAPPA);
+        resultsTableShowMapPopupMenu.addActionListener(e -> {
+            //m_tblResult_popupRow=tblResults.getSelectedRow();
+            // Per rendere evidente a quale riga mi riferisco la seleziono
+            tblResults.setRowSelectionInterval(m_tblResult_popupRow, m_tblResult_popupRow);
+            showMapWebView();
+
+//                JTable target = tblResults;
+//
+//                int columnLatitudeIndex = target.getColumn(LATITUDE).getModelIndex();
+//                int columnLongitudeIndex = target.getColumn(LONGITUDE).getModelIndex();
+//                double latitude = (double) target.getModel().getValueAt(m_tblResult_popupRow, columnLatitudeIndex);
+//                double longitude = (double) target.getModel().getValueAt(m_tblResult_popupRow, columnLongitudeIndex);
+//
+//                // Codice originario che non ricarica la webview
+//                CoordinatesToMap coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
+//                coordinatesToGoogleMaps.setVisible(true);
+
         });
 
         resultsTablePopupMenu.add(resultsTableSelectedRowsPopupMenu);
+        resultsTablePopupMenu.add(resultsTableShowMapPopupMenu);
 
         // Aggiungo il mouse listener al componente giusto
         tblResults.addMouseListener(new MouseListener() {
             /**
              * Apro una finestra con una mappa centrata sulle coordinate
+             *
              * @param e Evento del mouse
              */
             @Override
             public void mouseClicked(MouseEvent e) {
-                // TODO: Testare quando il servizio maxmindlite di ripe.net tornerà on line
-                // Testare in alternativa con un file json caricato a mano nella tabella
                 if (e.getClickCount() == 2) {
-                    JTable target = (JTable) e.getSource();
-                    int row = target.getSelectedRow();
-                    int columnLatitudeIndex = target.getColumn(LATITUDE).getModelIndex();
-                    int columnLongitudeIndex = target.getColumn(LONGITUDE).getModelIndex();
-                    double latitude = (double) target.getModel().getValueAt(row, columnLatitudeIndex);
-                    double longitude = (double) target.getModel().getValueAt(row, columnLongitudeIndex);
+                    m_tblResult_popupRow = tblResults.getSelectedRow();
+                    showMapWebView();
 
-                    // Codice originario che non ricarica la webview
-                    CoordinatesToMap coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
-                    coordinatesToGoogleMaps.setVisible(true);
+//                    JTable target = (JTable) e.getSource();
+//                    int row = target.getSelectedRow();
+//                    int columnLatitudeIndex = target.getColumn(LATITUDE).getModelIndex();
+//                    int columnLongitudeIndex = target.getColumn(LONGITUDE).getModelIndex();
+//                    double latitude = (double) target.getModel().getValueAt(row, columnLatitudeIndex);
+//                    double longitude = (double) target.getModel().getValueAt(row, columnLongitudeIndex);
+//
+//                    // Codice originario che non ricarica la webview
+//                    CoordinatesToMap coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
+//                    coordinatesToGoogleMaps.setVisible(true);
 
-//                    if (coordinatesToGoogleMaps == null) {
-//                        coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
-//                        coordinatesToGoogleMaps.setVisible(true);
-//                    } else {
-//                        coordinatesToGoogleMaps.setVisible(true);
-//                        coordinatesToGoogleMaps.loadAndDisplayMap(latitude, longitude);
-//                    }
-                    //coordinatesToGoogleMaps.loadAndDisplayMap();
-//                    StringBuffer sb = new StringBuffer();
-//                    String lineSeparator = System.getProperty("line.separator");
-//                    sb.append(tblResults[row][0] + lineSeparator);
-//                    sb.append(tabledata[row][1] + lineSeparator);
-//                    sb.append(tabledata[row][2] + lineSeparator);
-//                    TextFrame textFrame = new TextFrame(sb.toString());
-//                    textFrame.setVisible(true);
                 }
             }
 
             @Override
             public void mousePressed(MouseEvent e) {
+                // Imposto la riga selezionata sotto il puntatore del mouse per selezionare la relativa colonna nell'adapter del popup menu
+                // relativo alla mappa
+                m_tblResult_popupRow = tblResults.rowAtPoint(e.getPoint());
                 showPopup(e);
             }
 
@@ -389,178 +412,270 @@ public class RipeQueryUI {
 
             private void showPopup(MouseEvent e) {
                 if (e.isPopupTrigger()) {
-                    resultsTablePopupMenu.show(e.getComponent(),
-                            e.getX(), e.getY());
+                    resultsTablePopupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });
 
-        btnCancellaTutto.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int choice = JOptionPane.showConfirmDialog(mainPanel,
-                        CANCELLO_TUTTI_GLI_IP_DA_CONTROLLARE_E_CONTROLLATI,
-                        CONFERMA,
-                        JOptionPane.OK_CANCEL_OPTION);
+        btnCancellaTutto.addActionListener(e -> {
+            int choice = JOptionPane.showConfirmDialog(mainPanel,
+                    CANCELLO_TUTTI_GLI_IP_DA_CONTROLLARE_E_CONTROLLATI,
+                    CONFERMA,
+                    JOptionPane.OK_CANCEL_OPTION);
 
-                if (choice != JOptionPane.OK_OPTION) {
+            if (choice != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            txtIpListModel.removeAllElements();
+            txtResults.setText("");
+            IPToBeChecked.clear();
+            lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
+            btnIniziaAnalisi.setEnabled(false);
+            tblResultModel.setRowCount(0);
+            btnCancellaTutto.setEnabled(false);
+            lblQueryResultValue.setText("");
+            lblStatusBar.setText(" ");
+            lblQueryResultValue.setText("");
+
+            m_downloadWorker = null;
+            btnSalvaDatiJSON.setEnabled(false);
+        });
+
+        btnCopyToclipboard.addActionListener(e -> copiaTabellaSuClipboard(false));
+
+        incollaIpButton.addActionListener(e -> incollaDaClipBoard());
+
+        btnSalvaRisultati.addActionListener(e -> {
+            jFileChooser.setMultiSelectionEnabled(false);
+            int retVal = jFileChooser.showSaveDialog(mainPanel);
+            if (retVal == JFileChooser.APPROVE_OPTION) {
+                File saveFileChoosen = jFileChooser.getSelectedFile();
+
+                // Salvo l'ultima posizione
+                prefs.put(LAST_USED_FOLDER, saveFileChoosen.getParent());
+
+                if (saveFileChoosen.exists()) {
+                    int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + FILE_ESISTE_SOVRASCRIVO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.OK_CANCEL_OPTION);
+                    if (chosenOption != JOptionPane.OK_OPTION) {
+                        return;
+                    }
+                }
+                if (saveFile(saveFileChoosen, true)) {
+                    JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    lblStatusBar.setText(SALVATO_CON_SUCCESSO);
+                } else {
+                    JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
+                }
+            }
+        });
+
+        btnCaricaDatiDaFileButton.addActionListener(e -> {
+            jFileChooser.setMultiSelectionEnabled(false);
+            int retVal = jFileChooser.showOpenDialog(mainPanel);
+            if (retVal == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = jFileChooser.getSelectedFile();
+
+                // Salvo l'ultima posizione
+                prefs.put(LAST_USED_FOLDER, selectedFile.getParent());
+
+                RipeQuery ripeQuery = new RipeQuery(null);
+
+                if (!ripeQuery.parseFromFile(DATA_LOADED_FROM_FILE, selectedFile)) {
+                    JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_CARICARE_IL_FILE + selectedFile.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    lblStatusBar.setText(ERRORE_NEL_CARICARE_IL_FILE);
                     return;
                 }
 
-                txtIpList.setText("");
-                txtResults.setText("");
-                IPToBeChecked.clear();
-                lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
-                btnIniziaAnalisi.setEnabled(false);
+                // Azzero la tabella e la riaggiorno
                 tblResultModel.setRowCount(0);
-                btnCancellaTutto.setEnabled(false);
-                lblQueryResultValue.setText("");
-                lblStatusBar.setText(" ");
-                lblQueryResultValue.setText("");
+                m_masterCounter = 1;
 
-                m_downloadWorker=null;
-                btnSalvaDatiJSON.setEnabled(false);
+                updateTable(ripeQuery);
+
             }
         });
 
-        btnCopyToclipboard.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                copiaTabellaSuClipboard(false);
-            }
-        });
 
-        incollaIpButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                incollaDaClipBoard();
-            }
-        });
+        btnSalvaDatiJSON.addActionListener(e -> {
+            jFileChooser.setMultiSelectionEnabled(false);
+            int retVal = jFileChooser.showSaveDialog(mainPanel);
+            if (retVal == JFileChooser.APPROVE_OPTION) {
+                File saveFileChoosen = jFileChooser.getSelectedFile();
 
-        btnSalvaRisultati.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                jFileChooser.setMultiSelectionEnabled(false);
-                int retVal = jFileChooser.showSaveDialog(mainPanel);
-                if (retVal == JFileChooser.APPROVE_OPTION) {
-                    File saveFileChoosen = jFileChooser.getSelectedFile();
+                // Salvo l'ultima posizione
+                prefs.put(LAST_USED_FOLDER, saveFileChoosen.getParent());
 
-                    // Salvo l'ultima posizione
-                    prefs.put(LAST_USED_FOLDER, saveFileChoosen.getParent());
-
-                    if (saveFileChoosen.exists()) {
-                        int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + FILE_ESISTE_SOVRASCRIVO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.OK_CANCEL_OPTION);
-                        if (chosenOption != JOptionPane.OK_OPTION) {
-                            return;
-                        }
+                if (saveFileChoosen.exists()) {
+                    int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + FILE_ESISTE_SOVRASCRIVO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.OK_CANCEL_OPTION);
+                    if (chosenOption != JOptionPane.OK_OPTION) {
+                        return;
                     }
-                    if (saveFile(saveFileChoosen,true)) {
-                        JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        lblStatusBar.setText(SALVATO_CON_SUCCESSO);
-                    } else {
-                        JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
-                    }
+                }
+                if (saveFile(saveFileChoosen, false)) {
+                    JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    lblStatusBar.setText(SALVATO_CON_SUCCESSO);
+                } else {
+                    JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
                 }
             }
         });
 
-        btnCaricaDatiDaFileButton.addActionListener(new ActionListener() {
+        aggiungiIPButton.addActionListener(e -> {
+            // Raggruppare in un'unica funzione (vedi incolla ip)
+            String linea = txtManualIP.getText();
+            int startingIPNumbers = IPToBeChecked.size();
+            int skippedIP = 0;
+            if (linea.matches(IPRegexp)) {
+                if (!IPToBeChecked.contains(linea)) {
+                    IPToBeChecked.add(linea);
+                    txtIpListModel.addElement(linea);
+                } else {
+
+                    skippedIP++;
+                }
+            }
+
+
+            lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
+
+            if (IPToBeChecked.size() > 0) {
+                if (IPToBeChecked.size() == startingIPNumbers) {
+                    if (skippedIP > 0) {
+                        JOptionPane.showMessageDialog(mainPanel, IP_GIA_PRESENTE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+
+                btnIniziaAnalisi.setEnabled(true);
+                btnCancellaTutto.setEnabled(true);
+
+                // Specifico per questo pulsante
+                txtManualIP.setText("");
+
+            } else {
+                JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
+                btnIniziaAnalisi.setEnabled(false);
+                btnCancellaTutto.setEnabled(false);
+            }
+        });
+
+        // Azione per cercare nella tabella.
+        // Da associare ai campi che possono richiederlo (es. jtextfield alla pressione di invio e bottoni)
+        Action searchIPInTable = new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                jFileChooser.setMultiSelectionEnabled(false);
-                int retVal = jFileChooser.showOpenDialog(mainPanel);
-                if (retVal == JFileChooser.APPROVE_OPTION) {
-                    File selectedFile = jFileChooser.getSelectedFile();
 
-                    // Salvo l'ultima posizione
-                    prefs.put(LAST_USED_FOLDER, selectedFile.getParent());
+                String IP = txtIpToBeSelected.getText();
 
-                    RipeQuery ripeQuery = new RipeQuery(null);
+                // Se non è un IP non faccio nulla e semplicemente ritorno
+                if (!IP.matches(IPRegexp)) {
+                    return;
+                }
 
-                    if (!ripeQuery.parseFromFile(DATA_LOADED_FROM_FILE, selectedFile)) {
-                        JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_CARICARE_IL_FILE + selectedFile.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
+                tblResults.clearSelection();
+                for (int i = 0; i < tblResults.getRowCount(); i++) {
+                    String subnet_temp = (String) tblResults.getModel().getValueAt(
+                            i,
+                            tblResults.getColumn(RESOURCE).getModelIndex()
+                    );
+
+                    // Se c'è un errore nella rappresentazione delle risorse nella colonna tabella allora esco
+                    if (!subnet_temp.matches(IPRegexp)) {
                         return;
                     }
 
-                    updateTable(ripeQuery);
-
-                }
-            }
-        });
-        btnSalvaDatiJSON.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                jFileChooser.setMultiSelectionEnabled(false);
-                int retVal = jFileChooser.showSaveDialog(mainPanel);
-                if (retVal == JFileChooser.APPROVE_OPTION) {
-                    File saveFileChoosen = jFileChooser.getSelectedFile();
-
-                    // Salvo l'ultima posizione
-                    prefs.put(LAST_USED_FOLDER, saveFileChoosen.getParent());
-
-                    if (saveFileChoosen.exists()) {
-                        int chosenOption = JOptionPane.showConfirmDialog(mainPanel, saveFileChoosen.getAbsolutePath() + FILE_ESISTE_SOVRASCRIVO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.OK_CANCEL_OPTION);
-                        if (chosenOption != JOptionPane.OK_OPTION) {
-                            return;
+                    // Ricerco ed evidenzio la riga posizionando la vista in modo coerente
+                    // In caso di errore non faccio nulla
+                    try {
+                        if (CheckIpInCidrSubnet.checkIpInCidr(txtIpToBeSelected.getText(), subnet_temp)) {
+                            tblResults.setRowSelectionInterval(i, i);
+                            tblResults.scrollRectToVisible(new Rectangle(tblResults.getCellRect(i, 0, true)));
                         }
-                    }
-                    if (saveFile(saveFileChoosen,false)) {
-                        JOptionPane.showMessageDialog(mainPanel, FILE + saveFileChoosen.getAbsolutePath() + SALVATO_CON_SUCCESSO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        lblStatusBar.setText(SALVATO_CON_SUCCESSO);
-                    } else {
-                        JOptionPane.showMessageDialog(mainPanel, ERRORE_NEL_SALVARE_IL_FILE + saveFileChoosen.getAbsolutePath(), INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        lblStatusBar.setText(ERRORE_NEL_SALVARE_IL_FILE);
+                    } catch (UnknownHostException unknownHostException) {
+                        //unknownHostException.printStackTrace();
                     }
                 }
             }
-        });
-        
-        aggiungiIPButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                // Raggruppare in un'unica funzione (vedi incolla ip)
-                String linea = txtManualIP.getText();
-                int startingIPNumbers = IPToBeChecked.size();
-                int skippedIP=0;
-                if (linea.matches(IPRegexp)) {
-                    if (!IPToBeChecked.contains(linea)) {
-                        IPToBeChecked.add(linea);
-                        txtIpList.append(linea);
-                        txtIpList.append(System.lineSeparator());
-                    } else {
+        };
 
-                        skippedIP++;
-                    }
-                }
+        // Il bottone e invio scatenano la stessa azione
+        btnSelectIP.addActionListener(searchIPInTable);
+        txtIpToBeSelected.addActionListener(searchIPInTable);
+
+        // Validatore dell'input per i campi JTextField contenenti IP.
+//        KeyAdapter validateInsertedIp = new KeyAdapter() {
+//            @Override
+//            public void keyReleased(KeyEvent e) {
+//                super.keyReleased(e);
+//
+//                JTextField jTextField = (JTextField) e.getSource();
+//
+//                if (jTextField.getText().isEmpty()) {
+//                    jTextField.setBackground(SystemColor.text);
+//                    return;
+//                }
+//
+//                if (jTextField.getText().matches(IPRegexp)) {
+//                    jTextField.setBackground(Color.GREEN);
+//                } else {
+//                    jTextField.setBackground(Color.RED);
+//
+//                }
+//            }
+//
+//        };
+
+        KeyAdapterForIpChecking validateInsertedIp1 = new KeyAdapterForIpChecking(aggiungiIPButton);
+        KeyAdapterForIpChecking validateInsertedIp2 = new KeyAdapterForIpChecking(btnSelectIP);
 
 
-                lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
+        // Aggiungo lo stesso listener nei JTextField che trattano indirizzi IP
+        txtManualIP.addKeyListener(validateInsertedIp1);
+        txtIpToBeSelected.addKeyListener(validateInsertedIp2);
 
-                if (IPToBeChecked.size() > 0) {
-                    if (IPToBeChecked.size() == startingIPNumbers) {
-                        if (skippedIP>0){
-                            JOptionPane.showMessageDialog(mainPanel, "IP già presente", INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        } else {
-                            JOptionPane.showMessageDialog(mainPanel, "IP npn valido", INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                        }
-                    }
+    }
 
-                    btnIniziaAnalisi.setEnabled(true);
-                    btnCancellaTutto.setEnabled(true);
+    /**
+     * Mostra al webview con la mappa. Usa le seguenti variabili di classe:
+     * - tblResults
+     * - m_tblResult_popupRow che deve essere già impostata sulla riga selezionata da cui prende i dati da usare
+     */
+    private void showMapWebView() {
+        int columnLatitudeIndex = tblResults.getColumn(LATITUDE).getModelIndex();
+        int columnLongitudeIndex = tblResults.getColumn(LONGITUDE).getModelIndex();
+        double latitude = (double) tblResults.getModel().getValueAt(m_tblResult_popupRow, columnLatitudeIndex);
+        double longitude = (double) tblResults.getModel().getValueAt(m_tblResult_popupRow, columnLongitudeIndex);
 
-                    // Specifico per questo pulsante
-                    txtManualIP.setText("");
+        // Codice originario che non ricarica la webview
+        CoordinatesToMap coordinatesToGoogleMaps = new CoordinatesToMap(latitude, longitude);
+        coordinatesToGoogleMaps.setVisible(true);
+    }
 
-                } else {
-                    JOptionPane.showMessageDialog(mainPanel, "IP non valido", DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
-                    btnIniziaAnalisi.setEnabled(false);
-                    btnCancellaTutto.setEnabled(false);
-                }
-
+    private void cancellaIP() {
+        int retval = JOptionPane.showConfirmDialog(mainPanel, CONFERMA_ELIMINAZIONE_DEGLI_IP_SELEZIONATI, CONFERMA, JOptionPane.OK_CANCEL_OPTION);
+        if (retval == JOptionPane.OK_OPTION) {
+            for (Object val : txtIpList.getSelectedValuesList()) {
+                txtResults.append(RIMOSSO + val + "\n");
+                txtIpListModel.removeElement(val);
             }
-        });
+
+            //IPToBeChecked.remove(index); // TODO: probabilmente è più sicuro azzerare l'array e copiarvi sopra il contenuto della JList
+            // Azzero tutto e ricopio quello che resta nell'array degli ip da analizzare
+            IPToBeChecked.clear();
+            // TODO: Forse c'è un modo migliore per copiare gli elementi della jlist in un array
+            for (Enumeration<String> enumeration = txtIpListModel.elements(); enumeration.hasMoreElements(); ) {
+                IPToBeChecked.add(enumeration.nextElement());
+            }
+
+            // Se non ci sono ip non analizzo nulla
+            if (IPToBeChecked.size() == 0) {
+                btnIniziaAnalisi.setEnabled(false);
+            }
+        }
     }
 
     private void updateTable(RipeQuery ripeQuery) {
@@ -681,8 +796,9 @@ public class RipeQueryUI {
     /**
      * Salvo i dato in un file. In caso fromTable = false ed i dati non sono stati ancora scaricati
      * mostra un messaggio di errore
+     *
      * @param fileToBeSaved File destinazione
-     * @param fromTable True se prelevo i dati dalla tabella, false se vanno presi dal json scaricato
+     * @param fromTable     True se prelevo i dati dalla tabella, false se vanno presi dal json scaricato
      * @return true se tutto è andato a buon fine, false altrimenti.
      */
     private boolean saveFile(File fileToBeSaved, boolean fromTable) {
@@ -691,11 +807,11 @@ public class RipeQueryUI {
         try (BufferedWriter bfw = new BufferedWriter(
                 new OutputStreamWriter(new FileOutputStream(fileToBeSaved), StandardCharsets.UTF_8))
         ) {
-            String dataToBeWritten=null;
+            String dataToBeWritten = null;
             if (fromTable) {
                 dataToBeWritten = tableToString(false);
             } else {
-                if (m_downloadWorker==null){
+                if (m_downloadWorker == null) {
                     JOptionPane.showMessageDialog(mainPanel, NON_HO_ANCORA_SCARICATO_ALCUN_DATO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
                     return false;
                 } else {
@@ -720,7 +836,7 @@ public class RipeQueryUI {
         int skippedValidIP = 0;
         //try (BufferedReader bfr = new BufferedReader(new FileReader(IPFile))) {
         try (BufferedReader bfr = new BufferedReader(
-                new InputStreamReader( new FileInputStream(IPFile),StandardCharsets.UTF_8))
+                new InputStreamReader(new FileInputStream(IPFile), StandardCharsets.UTF_8))
         ) {
             String linea;
             while ((linea = bfr.readLine()) != null) {
@@ -745,13 +861,10 @@ public class RipeQueryUI {
         JMenuBar menuBar = new JMenuBar();
         JMenu jMenuQuestion = new JMenu("?");
         JMenuItem jMenuItemAbout = new JMenuItem(ABOUT);
-        jMenuItemAbout.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                //JOptionPane.showMessageDialog(frame, VERSIONE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
-                DlgAbout dlgAbout = new DlgAbout(frame,true);
-                dlgAbout.setVisible(true);
-            }
+        jMenuItemAbout.addActionListener(e -> {
+            //JOptionPane.showMessageDialog(frame, VERSIONE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+            DlgAbout dlgAbout = new DlgAbout(frame, true);
+            dlgAbout.setVisible(true);
         });
         jMenuQuestion.add(jMenuItemAbout);
         menuBar.add(jMenuQuestion);
@@ -812,8 +925,7 @@ public class RipeQueryUI {
                         if (linea.matches(IPRegexp)) {
                             if (!IPToBeChecked.contains(linea)) {
                                 IPToBeChecked.add(linea);
-                                txtIpList.append(linea);
-                                txtIpList.append(System.lineSeparator());
+                                txtIpListModel.addElement(linea);
                             } else {
                                 skippedIP++;
                             }
@@ -846,6 +958,55 @@ public class RipeQueryUI {
             }
         }
 
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // INNER CLASSES
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    class KeyAdapterForIpChecking extends KeyAdapter {
+        JButton bottoneCollegato;
+
+        public KeyAdapterForIpChecking(JButton bottoneCollegato) {
+            this.bottoneCollegato = bottoneCollegato;
+        }
+
+        @Override
+        public void keyReleased(KeyEvent e) {
+            super.keyReleased(e);
+
+            JTextField jTextField = (JTextField) e.getSource();
+
+            if (jTextField.getText().isEmpty()) {
+                jTextField.setBackground(SystemColor.text);
+                if (bottoneCollegato != null) {
+                    bottoneCollegato.setEnabled(false);
+                }
+                return;
+            }
+
+            boolean buttonenabled=false;
+
+            if (jTextField.getText().matches(IPRegexp)) {
+                jTextField.setBackground(Color.GREEN);
+                buttonenabled=true;
+            } else {
+                jTextField.setBackground(Color.RED);
+                buttonenabled=false;
+            }
+
+            if (bottoneCollegato != null) {
+                bottoneCollegato.setEnabled(buttonenabled);
+            }
+
+        }
     }
 
     class DownloadWorker extends SwingWorker<ArrayList<RipeQuery.LocationData>, String> implements DownloadUpdateCallback {
@@ -924,12 +1085,11 @@ public class RipeQueryUI {
         }
 
         // TODO: Non molto bello
-        public String getRawDownloadedJson(){
-            if (ripeQuery!=null){
+        public String getRawDownloadedJson() {
+            if (ripeQuery != null) {
                 return ripeQuery.getRawResponse();
             }
             return null;
         }
     }
-
 }
