@@ -2,9 +2,7 @@
  - Copyright (c) 2020. This code follow the GPL v3 license scheme.
  -----------------------------------------------------------------------------*/
 
-import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
+package it.aequinoxio;import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
 import javafx.scene.Scene;
 import javafx.scene.web.WebEngine;
@@ -12,13 +10,11 @@ import javafx.scene.web.WebView;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.net.MalformedURLException;
 import java.net.URL;
 
 public class CoordinatesToMap extends JFrame {
-    private static final String HTTPS_WWW_OPENSTREETMAP_ORG_MAP = "https://www.openstreetmap.org/#map=17/";
+    private static final String HTTPS_WWW_OPENSTREETMAP_ORG_MAP = "https://www.openstreetmap.org/#map=15/";
     private JPanel pnlMainPanel;
     private JButton btnChiudi;
     private JPanel pnlMapPanel;
@@ -39,12 +35,7 @@ public class CoordinatesToMap extends JFrame {
         this.longitude = longitude;
         txtLatitude.setText(String.valueOf(latitude));
         txtLongitude.setText(String.valueOf(longitude));
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                setupUI();
-            }
-        });
+        SwingUtilities.invokeLater(this::setupUI);
     }
 
     // TODO: Da sistemare il fatto che al secondo avvio del frame non viene visualizzato nulla
@@ -62,17 +53,12 @@ public class CoordinatesToMap extends JFrame {
                 jfxPanel.setPreferredSize(PREFERRED_SIZE);
                 pbLoadingStatus.setStringPainted(true);
 
-                webEngine.getLoadWorker().workDoneProperty().addListener(new ChangeListener<Number>() {
+                webEngine.getLoadWorker().workDoneProperty().addListener((observableValue, oldValue, newValue) -> SwingUtilities.invokeLater(new Runnable() {
                     @Override
-                    public void changed(ObservableValue<? extends Number> observableValue, Number oldValue, final Number newValue) {
-                        SwingUtilities.invokeLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                pbLoadingStatus.setValue(newValue.intValue());
-                            }
-                        });
+                    public void run() {
+                        pbLoadingStatus.setValue(newValue.intValue());
                     }
-                });
+                }));
 
                 loadAndDisplayMap();
             }
@@ -84,11 +70,7 @@ public class CoordinatesToMap extends JFrame {
 
         getRootPane().setDefaultButton(btnChiudi);
 
-        btnChiudi.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onOK();
-            }
-        });
+        btnChiudi.addActionListener(e -> onOK());
         //setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         //setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         pack();
@@ -101,19 +83,16 @@ public class CoordinatesToMap extends JFrame {
 
 
     private void loadURL(final String url) {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                String tmp;
-                try {
-                    tmp = new URL(url).toExternalForm();
-                    //txtStatus.setText(tmp + "***");
-                } catch (MalformedURLException e) {
-                    return;
-                }
-
-                webEngine.load(tmp);
+        Platform.runLater(() -> {
+            String tmp;
+            try {
+                tmp = new URL(url).toExternalForm();
+                //txtStatus.setText(tmp + "***");
+            } catch (MalformedURLException e) {
+                return;
             }
+
+            webEngine.load(tmp);
         });
     }
 

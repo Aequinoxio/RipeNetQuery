@@ -1,8 +1,8 @@
-/* ******************************************************************************
- * Copyright (c) 2020. This code follow the GPL v3 license scheme.
- ******************************************************************************/
+/*------------------------------------------------------------------------------
+ - Copyright (c) 2020. This code follow the GPL v3 license scheme.
+ -----------------------------------------------------------------------------*/
 
-import org.jetbrains.annotations.NotNull;
+package it.aequinoxio;import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

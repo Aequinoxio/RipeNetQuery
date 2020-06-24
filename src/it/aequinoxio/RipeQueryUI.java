@@ -1,8 +1,8 @@
-/* ******************************************************************************
- * Copyright (c) 2020. This code follow the GPL v3 license scheme.
- ******************************************************************************/
+/*------------------------------------------------------------------------------
+ - Copyright (c) 2020. This code follow the GPL v3 license scheme.
+ -----------------------------------------------------------------------------*/
 
-import org.jetbrains.annotations.NonNls;
+package it.aequinoxio;import org.jetbrains.annotations.NonNls;
 
 import javax.swing.*;
 import javax.swing.border.Border;
@@ -440,6 +440,11 @@ public class RipeQueryUI {
 
             m_downloadWorker = null;
             btnSalvaDatiJSON.setEnabled(false);
+
+//            txtIpToBeSelected.setText("");
+//            txtIpToBeSelected.postActionEvent();
+//            txtIpToBeSelected.setEnabled(false);
+//            btnSelectIP.setEnabled(false);
         });
 
         btnCopyToclipboard.addActionListener(e -> copiaTabellaSuClipboard(false));
@@ -492,7 +497,10 @@ public class RipeQueryUI {
                 tblResultModel.setRowCount(0);
                 m_masterCounter = 1;
 
-                updateTable(ripeQuery);
+                if (updateTable(ripeQuery)){
+                    txtIpToBeSelected.setEnabled(true);
+                    btnCancellaTutto.setEnabled(true);
+                }
 
             }
         });
@@ -523,45 +531,98 @@ public class RipeQueryUI {
             }
         });
 
-        aggiungiIPButton.addActionListener(e -> {
-            // Raggruppare in un'unica funzione (vedi incolla ip)
-            String linea = txtManualIP.getText();
-            int startingIPNumbers = IPToBeChecked.size();
-            int skippedIP = 0;
-            if (linea.matches(IPRegexp)) {
-                if (!IPToBeChecked.contains(linea)) {
-                    IPToBeChecked.add(linea);
-                    txtIpListModel.addElement(linea);
-                } else {
+//        aggiungiIPButton.addActionListener(e -> {
+//            // Raggruppare in un'unica funzione (vedi incolla ip)
+//            String linea = txtManualIP.getText();
+//            int startingIPNumbers = IPToBeChecked.size();
+//            int skippedIP = 0;
+//            if (linea.matches(IPRegexp)) {
+//                if (!IPToBeChecked.contains(linea)) {
+//                    IPToBeChecked.add(linea);
+//                    txtIpListModel.addElement(linea);
+//                } else {
+//
+//                    skippedIP++;
+//                }
+//            }
+//
+//
+//            lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
+//
+//            if (IPToBeChecked.size() > 0) {
+//                if (IPToBeChecked.size() == startingIPNumbers) {
+//                    if (skippedIP > 0) {
+//                        JOptionPane.showMessageDialog(mainPanel, IP_GIA_PRESENTE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+//                    } else {
+//                        JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+//                    }
+//                }
+//
+//                btnIniziaAnalisi.setEnabled(true);
+//                btnCancellaTutto.setEnabled(true);
+//
+//                // Specifico per questo pulsante
+//                txtManualIP.setText("");
+//                txtManualIP.setBackground(SystemColor.text);
+//                aggiungiIPButton.setEnabled(false);
+//
+//            } else {
+//                JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
+//                btnIniziaAnalisi.setEnabled(false);
+//                btnCancellaTutto.setEnabled(false);
+//            }
+//        });
 
-                    skippedIP++;
-                }
-            }
 
-
-            lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
-
-            if (IPToBeChecked.size() > 0) {
-                if (IPToBeChecked.size() == startingIPNumbers) {
-                    if (skippedIP > 0) {
-                        JOptionPane.showMessageDialog(mainPanel, IP_GIA_PRESENTE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+        //Azione per aggiungere gli ip alla lista
+        Action addIPToListAction = new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // Raggruppare in un'unica funzione (vedi incolla ip)
+                String linea = txtManualIP.getText();
+                int startingIPNumbers = IPToBeChecked.size();
+                int skippedIP = 0;
+                if (linea.matches(IPRegexp)) {
+                    if (!IPToBeChecked.contains(linea)) {
+                        IPToBeChecked.add(linea);
+                        txtIpListModel.addElement(linea);
                     } else {
-                        JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+
+                        skippedIP++;
                     }
                 }
 
-                btnIniziaAnalisi.setEnabled(true);
-                btnCancellaTutto.setEnabled(true);
 
-                // Specifico per questo pulsante
-                txtManualIP.setText("");
+                lblStatus.setText(NUMERO_IP_VALIDI + IPToBeChecked.size());
 
-            } else {
-                JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
-                btnIniziaAnalisi.setEnabled(false);
-                btnCancellaTutto.setEnabled(false);
+                if (IPToBeChecked.size() > 0) {
+                    if (IPToBeChecked.size() == startingIPNumbers) {
+                        if (skippedIP > 0) {
+                            JOptionPane.showMessageDialog(mainPanel, IP_GIA_PRESENTE, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        } else {
+                            JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, INFORMAZIONE_TITLE_DIALOG, JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+
+                    btnIniziaAnalisi.setEnabled(true);
+                    btnCancellaTutto.setEnabled(true);
+
+                    // Specifico per questo pulsante
+                    txtManualIP.setText("");
+                    txtManualIP.setBackground(SystemColor.text);
+                    aggiungiIPButton.setEnabled(false);
+
+                } else {
+                    JOptionPane.showMessageDialog(mainPanel, IP_NON_VALIDO, DLG_ERRORE, JOptionPane.ERROR_MESSAGE);
+                    btnIniziaAnalisi.setEnabled(false);
+                    btnCancellaTutto.setEnabled(false);
+                }
+
             }
-        });
+        };
+
+        aggiungiIPButton.addActionListener(addIPToListAction);
+        txtManualIP.addActionListener(addIPToListAction);
 
         // Azione per cercare nella tabella.
         // Da associare ai campi che possono richiederlo (es. jtextfield alla pressione di invio e bottoni)
@@ -637,6 +698,16 @@ public class RipeQueryUI {
         txtManualIP.addKeyListener(validateInsertedIp1);
         txtIpToBeSelected.addKeyListener(validateInsertedIp2);
 
+        // Verifico la versione del jre con cui vengo lanciato. Qeusto perchè se la jre è > 1.8 allora non ho le javaFX
+        // ed il modulo della mappa non funziona. TODO: fare una buold specifica per jdk 11 o caricare le javafx per tutte le jre
+        String javaVersion = System.getProperty("java.version");
+        if (!javaVersion.startsWith("1.8")){
+            JOptionPane.showMessageDialog(mainPanel,"App eseguita con java machine: "+javaVersion
+                    +"\nConsigliata la versione JRE pari a 1.8\nLe mappe usano JavaFX e potrebbero non funzionare correttamente"+
+                            "\ncon questa versione di Java",
+                    "Java version check", JOptionPane.WARNING_MESSAGE);
+        }
+
     }
 
     /**
@@ -656,6 +727,10 @@ public class RipeQueryUI {
     }
 
     private void cancellaIP() {
+        // TODO: Se non è selezionato nulla operare una delle due ipotesi:
+        //  - non mostrare il sottomenu
+        //  - Selezionare la riga sotto il cursore e cancellarla
+
         int retval = JOptionPane.showConfirmDialog(mainPanel, CONFERMA_ELIMINAZIONE_DEGLI_IP_SELEZIONATI, CONFERMA, JOptionPane.OK_CANCEL_OPTION);
         if (retval == JOptionPane.OK_OPTION) {
             for (Object val : txtIpList.getSelectedValuesList()) {
@@ -663,7 +738,6 @@ public class RipeQueryUI {
                 txtIpListModel.removeElement(val);
             }
 
-            //IPToBeChecked.remove(index); // TODO: probabilmente è più sicuro azzerare l'array e copiarvi sopra il contenuto della JList
             // Azzero tutto e ricopio quello che resta nell'array degli ip da analizzare
             IPToBeChecked.clear();
             // TODO: Forse c'è un modo migliore per copiare gli elementi della jlist in un array
@@ -678,9 +752,15 @@ public class RipeQueryUI {
         }
     }
 
-    private void updateTable(RipeQuery ripeQuery) {
+    /**
+     * Aggiorna la tabella con i dati restituiti dalal query al Ripe
+     * @param ripeQuery Dati della query. Il parametro deve essere già compilato
+     * @return True se la tabella ha almeno una riga, false altrimenti
+     */
+    private boolean updateTable(RipeQuery ripeQuery) {
 
         ArrayList<RipeQuery.LocationData> locationDataArrayList = ripeQuery.getAllLocationsData();
+
         for (RipeQuery.LocationData locationData : locationDataArrayList) {
             txtResults.append(
                     m_masterCounter +
@@ -718,6 +798,8 @@ public class RipeQueryUI {
 
         String IP = StringBundle.getString("ip");
         lblQueryResultValue.setText(IP + (m_masterCounter - 1));
+
+        return (!locationDataArrayList.isEmpty());
     }
 
     private void copiaTabellaSuClipboard(boolean copySelected) {
@@ -971,7 +1053,7 @@ public class RipeQueryUI {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    class KeyAdapterForIpChecking extends KeyAdapter {
+    static class KeyAdapterForIpChecking extends KeyAdapter {
         JButton bottoneCollegato;
 
         public KeyAdapterForIpChecking(JButton bottoneCollegato) {
@@ -1066,7 +1148,9 @@ public class RipeQueryUI {
 
             m_masterCounter = 1; // Resetto il contatore per mostrare i numeri di riga nella tabella
 
-            updateTable(ripeQuery);
+            if (updateTable(ripeQuery)){
+                txtIpToBeSelected.setEnabled(true);
+            }
 
             btnIniziaAnalisi.setEnabled(true);
             pbWorking.setVisible(false);
@@ -1074,8 +1158,13 @@ public class RipeQueryUI {
 
             // Abilito il bottone per il salvataggio del json scaricato
             btnSalvaDatiJSON.setEnabled(true);
+
         }
 
+        /**
+         * Aggiorna l'UI, il contatore dei messaggi pubblicati, l'area di stato e la progess bar
+         * @param message Messaggio sa passare all'UI thread
+         */
         @Override
         public void update(String message) {
             publish(message);
@@ -1084,7 +1173,10 @@ public class RipeQueryUI {
             pbWorking.setValue(masterPublishCounter);
         }
 
-        // TODO: Non molto bello
+        /**
+         * Restituisce la risposta json come scaricata. Viene fatta una copia dei dati
+         * @return Dati grezzi in formato json
+         */
         public String getRawDownloadedJson() {
             if (ripeQuery != null) {
                 return ripeQuery.getRawResponse();

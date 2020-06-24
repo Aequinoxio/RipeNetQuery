@@ -2,7 +2,7 @@
  - Copyright (c) 2020. This code follow the GPL v3 license scheme.
  -----------------------------------------------------------------------------*/
 
-import java.math.BigInteger;
+package it.aequinoxio;import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 
