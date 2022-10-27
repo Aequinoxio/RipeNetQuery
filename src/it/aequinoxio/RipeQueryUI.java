@@ -699,7 +699,7 @@ public class RipeQueryUI {
         txtIpToBeSelected.addKeyListener(validateInsertedIp2);
 
         // Verifico la versione del jre con cui vengo lanciato. Qeusto perchè se la jre è > 1.8 allora non ho le javaFX
-        // ed il modulo della mappa non funziona. TODO: fare una buold specifica per jdk 11 o caricare le javafx per tutte le jre
+        // ed il modulo della mappa non funziona. TODO: fare una build specifica per jdk 11 o caricare le javafx per tutte le jre
         String javaVersion = System.getProperty("java.version");
         if (!javaVersion.startsWith("1.8")){
             JOptionPane.showMessageDialog(mainPanel,"App eseguita con java machine: "+javaVersion
@@ -1113,7 +1113,7 @@ public class RipeQueryUI {
                 HttpStatusCodes retval;
                 try {
                     retval = ripeQuery.downloadAndParseLocationData(ip);
-
+// Mettere qui una variabile per conservare tutte le risposte del sito per poi salvarle con la funzione richiamata dal bottone Salva json
                     // loggo gli errori e proseguo con il successivo IP
                     if (retval != HttpStatusCodes.OK) {
 

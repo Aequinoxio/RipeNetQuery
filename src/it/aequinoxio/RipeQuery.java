@@ -2,7 +2,9 @@
  - Copyright (c) 2020. This code follow the GPL v3 license scheme.
  -----------------------------------------------------------------------------*/
 
-package it.aequinoxio;import org.jetbrains.annotations.NonNls;
+package it.aequinoxio;
+
+import org.jetbrains.annotations.NonNls;
 
 import javax.json.*;
 import javax.net.ssl.HttpsURLConnection;
